@@ -9,7 +9,7 @@
   ([]
     (create-token "GOOGLE_APPLICATON_CREDENTIALS"))
   ([env-var]
-    (let [^ServiceAccountCredentials cred (g-cred/load-credentials env-var)
+    (let [^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
           ^ServiceAccountCredentials scoped (.createScoped cred ["https://www.googleapis.com/auth/firebase.database"
                                                                  "https://www.googleapis.com/auth/userinfo.email"])]
       {:token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)
