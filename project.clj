@@ -4,7 +4,7 @@
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.9.0"]
-                  [alekcz/google-credentials "2.0.6"]
+                  [alekcz/google-credentials "3.0.0"]
                   [org.martinklepsch/clj-http-lite "0.4.3"]
                   [cheshire "5.10.0"]]
   :plugins [[lein-cloverage "1.1.2"] 
