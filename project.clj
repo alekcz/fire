@@ -13,8 +13,8 @@
   :main fire.core
   :uberjar-name "fire.jar"            
   :repl-options {:init-ns fire.core}
-  :profiles {:test {:dependencies [ [com.climate/claypoole "1.1.4"]
-                                    [metosin/malli "0.0.1-SNAPSHOT"]]}}
+  :profiles { :test {:dependencies [  [com.climate/claypoole "1.1.4"]
+                                      [metosin/malli "0.0.1-SNAPSHOT"]]}}
   :aliases
   {"native"
     ["shell"

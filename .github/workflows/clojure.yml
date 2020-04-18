@@ -19,4 +19,4 @@ jobs:
       env: 
         FIRE: ${{ secrets.FIRE }}
       run: |
-        lein cloverage
+        lein test
