@@ -1,6 +1,7 @@
 (ns fire.core-test
   (:require [clojure.test :refer :all]
             [malli.generator :as mg]
+            [clojure.string :as str]
             [com.climate.claypoole :as cp]
             [fire.auth :as fire-auth]
             [fire.core :as fire]))
@@ -77,3 +78,7 @@
         (is (= num (count (keys read))))
         (is (= (set homes) (set (vals read))))
         (is (nil? read2)))))      
+
+(deftest run-test
+  (testing "Push read update and delete data"
+      (is (str/includes? (with-out-str (fire/-main )) "{:name graal}"))))

@@ -75,8 +75,7 @@
   (let [auth (auth/create-token :fire)
         db (:project-id auth)
         root "/fire-graalvm-test"]
-    (println auth)
-    (println (push! db root {:name "graal"} auth))
-    (println (write! db root {:name "graal"} auth))
+    (push! db root {:name "graal"} auth)
+    (write! db root {:name "graal"} auth)
     (println (read db root auth))
     (delete! db root auth)))

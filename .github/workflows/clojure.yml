@@ -18,5 +18,6 @@ jobs:
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
       run: |
         lein cloverage
