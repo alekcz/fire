@@ -6,7 +6,6 @@
   :dependencies [[org.clojure/clojure "1.9.0"]
                   [alekcz/google-credentials "2.0.6"]
                   [org.martinklepsch/clj-http-lite "0.4.3"]
-                  [clj-http "3.10.1"]
                   [cheshire "5.10.0"]]
   :plugins [[lein-cloverage "1.1.2"] 
             [lein-shell "0.5.0"]]

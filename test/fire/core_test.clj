@@ -3,8 +3,7 @@
             [malli.generator :as mg]
             [com.climate.claypoole :as cp]
             [fire.auth :as fire-auth]
-            [fire.core :as fire])
-  (:import 	[com.google.auth.oauth2 ServiceAccountCredentials]))
+            [fire.core :as fire]))
 
 
 (def home
