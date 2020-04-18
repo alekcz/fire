@@ -16,4 +16,7 @@ jobs:
     - name: Install dependencies
       run: lein deps
     - name: Run tests
-      run: lein cloverage
+      env: 
+        FIRE: ${{ secrets.FIRE }}
+      run: |
+        lein cloverage
