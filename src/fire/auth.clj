@@ -7,9 +7,10 @@
 
 (defn create-token 
   ([]
-    (create-token "GOOGLE_APPLICATON_CREDENTIALS"))
+    (create-token nil))
   ([env-var]
-    (let [^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
+    (let [env-var (if (nil? env-var) "GOOGLE_APPLICATON_CREDENTIALS" env-var)
+          ^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
           ^ServiceAccountCredentials scoped (.createScoped cred ["https://www.googleapis.com/auth/firebase.database"
                                                                  "https://www.googleapis.com/auth/userinfo.email"])]
       {:token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)

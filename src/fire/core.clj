@@ -7,13 +7,6 @@
 
 (set! *warn-on-reflection* 1)
 
-(defn recursive-merge
-  "Recursively merge hash maps."
-  [a b]
-  (if (and (map? a) (map? b))
-    (merge-with recursive-merge a b)
-    (if (map? a) a b)))
-
 (def firebase-root "firebaseio.com")
 
 (def http-type {:get    "GET"
@@ -21,6 +14,13 @@
                 :put    "PUT"
                 :patch  "PATCH"
                 :delete "DELETE"})
+
+(defn recursive-merge
+  "Recursively merge hash maps."
+  [a b]
+  (if (and (map? a) (map? b))
+    (merge-with recursive-merge a b)
+    (if (map? a) a b)))
 
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"

@@ -77,7 +77,8 @@
             read2  (fire/read db path auth)]
         (is (= num (count (keys read))))
         (is (= (set homes) (set (vals read))))
-        (is (nil? read2)))))      
+        (is (nil? read2))
+        (cp/shutdown pool))))      
 
 (deftest run-test
   (testing "Push read update and delete data"
