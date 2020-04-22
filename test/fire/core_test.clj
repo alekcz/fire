@@ -33,7 +33,7 @@
           updated-home (update-in home [:address :number] inc)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 100) :seed seed}))
+          path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           resp (fire/push! db path home auth)
           npath (str path "/" (:name resp))
           read0  (fire/read db path auth)
@@ -54,7 +54,7 @@
           updated-home (update-in home [:address :number] inc)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 100) :seed seed}))
+          path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           _ (fire/write! db path home auth)
           read1  (fire/read db path auth)
           _ (fire/update! db path updated-home auth)
@@ -72,7 +72,7 @@
             homes (random-homes num)
             auth (fire-auth/create-token :fire)
             db (:project-id auth)
-            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 30) :seed seed}))
+            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
             pool (cp/threadpool 100)
             _ (time (doall (cp/pmap pool #(fire/push! db path % auth) homes)))
             read (fire/read db path auth {:shallow true})
@@ -83,17 +83,15 @@
         (is (nil? read2))
         (cp/shutdown pool))))      
 
-      
-
 (deftest limit-test
   (testing "Limit responses"
-      (let [seed 5
+      (let [seed 4
             num 10
             limit 2
             homes (random-homes num)
             auth (fire-auth/create-token :fire)
             db (:project-id auth)
-            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 100) :seed seed}))
+            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
             pool (cp/threadpool 100)
             _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
             read (fire/read db path auth {:orderBy "$key" :limitToFirst limit})
@@ -105,7 +103,7 @@
 
 (deftest query-test
   (testing "Bulk push read and delete data"
-      (let [seed 6
+      (let [seed 5
             num 100
             anchor (+ 30 (rand-int 69))
             start (rand-int 20)
@@ -113,7 +111,7 @@
             homes (random-homes num)
             auth (fire-auth/create-token :fire)
             db (:project-id auth)
-            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 100) :seed seed}))
+            path (str "/fire-test-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
             pool (cp/threadpool 100)
             _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
             read (fire/read db path auth)

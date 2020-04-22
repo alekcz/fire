@@ -1,6 +1,7 @@
 (ns fire.auth
   (:require [google-credentials.core :as g-cred])
-  (:import 	[com.google.auth.oauth2 ServiceAccountCredentials])
+  (:import 	[com.google.auth.oauth2 ServiceAccountCredentials]
+            [java.util Vector])
   (:gen-class))
 
 (set! *warn-on-reflection* 1)
@@ -11,7 +12,7 @@
   ([env-var]
     (let [env-var (if (nil? env-var) "GOOGLE_APPLICATION_CREDENTIALS" env-var)
           ^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
-          ^ServiceAccountCredentials scoped (.createScoped cred ["https://www.googleapis.com/auth/firebase.database"
-                                                                 "https://www.googleapis.com/auth/userinfo.email"])]
+          ^ServiceAccountCredentials scoped (.createScoped cred ^Vector (into [] ["https://www.googleapis.com/auth/firebase.database"
+                                                                             "https://www.googleapis.com/auth/userinfo.email"]))]
       {:token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)
        :project-id (.getProjectId scoped)})))
