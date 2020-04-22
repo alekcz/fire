@@ -19,6 +19,7 @@ jobs:
       env: 
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)

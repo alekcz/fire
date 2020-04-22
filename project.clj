@@ -1,5 +1,5 @@
-(defproject alekcz/fire "0.0.3-SNAPSHOT"
-  :description "Firebase from Clojure basically Charmander 2.0"
+(defproject alekcz/fire "0.1.0"
+  :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
