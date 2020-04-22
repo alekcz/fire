@@ -1,6 +1,16 @@
 # fire
 
-A lightweight clojure client based using the Firebase REST API. 
+A lightweight clojure client for Firebase based using the REST API. Basically [Charmander](https://github.com/alekcz/charmander) 2.0  
+
+# Status
+
+![master](https://github.com/alekcz/fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/fire/branch/master/graph/badge.svg)](https://codecov.io/gh/alekcz/fire)   
+
+_Pre-alpha_
+
+## Prerequisites
+
+For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
 
 ## Usage
 
@@ -41,6 +51,18 @@ Delete at the specified locations:
 ```clojure
     (fire/delete! "protected-db-name" "/path" auth)
     (fire/delete! "public-db-name" "/path")
+    ; => nil
+```
+
+Query data at the specified locations:
+Note that if the child key is not indexed firebase will respond with error 400. Also `:orderBy` is required for all queries. 
+See the Firebase [query docs](https://firebase.google.com/docs/database/rest/retrieve-data#section-rest-filtering) for more info.
+```clojure
+    (fire/read "protected-db-name" "/path" auth {:orderBy "child-key" :startAt 10 :endAt 50})
+    (fire/read "protected-db-name" "/path" auth {:orderBy "child-key" :equalTo 10})
+    (fire/read "public-db-name" "/path" nil {:orderBy "child-key" :limitToFirst 10})
+    (fire/read "public-db-name" "/path" nil {:orderBy "child-key" :limitToLast 3})
+    
     ; => nil
 ```
 

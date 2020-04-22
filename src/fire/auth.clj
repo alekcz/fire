@@ -9,7 +9,7 @@
   ([]
     (create-token nil))
   ([env-var]
-    (let [env-var (if (nil? env-var) "GOOGLE_APPLICATON_CREDENTIALS" env-var)
+    (let [env-var (if (nil? env-var) "GOOGLE_APPLICATION_CREDENTIALS" env-var)
           ^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
           ^ServiceAccountCredentials scoped (.createScoped cred ["https://www.googleapis.com/auth/firebase.database"
                                                                  "https://www.googleapis.com/auth/userinfo.email"])]

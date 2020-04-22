@@ -65,10 +65,15 @@
   [db-name path & [auth options]]
   (request :delete db-name path nil auth options))
 
+(defn escape 
+  "Surround all string with quotes"
+  [query]
+  (apply merge (for [[k v] query]  {k (if (string? v) (str "\"" v "\"") v)})))
+
 (defn read
   "Retrieves data from Firebase database at a given path"
-  [db-name path & [auth queury-params options]]
-  (request :get db-name path nil auth (merge {:query-params (or queury-params {})} options)))
+  [db-name path & [auth query options]]
+  (request :get db-name path nil auth (merge {:query-params (or (escape query) {})} options)))
 
 ;to test graalvm compatibility
 (defn -main []
