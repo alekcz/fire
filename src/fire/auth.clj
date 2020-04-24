@@ -1,5 +1,5 @@
 (ns fire.auth
-  (:require [google-credentials.core :as g-cred])
+  (:require [googlecredentials.core :as g-cred])
   (:import 	[com.google.auth.oauth2 ServiceAccountCredentials]
             [java.util Vector])
   (:gen-class))

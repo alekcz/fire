@@ -14,6 +14,8 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 ## Usage
 
+`[alekcz/fire "0.1.0"]`
+
 Write to the specified location (will overwrite any existing data):
 
 ```clojure
@@ -67,11 +69,12 @@ See the Firebase [query docs](https://firebase.google.com/docs/database/rest/ret
 ```
 
 ## Thanks 
-Special thanks to [@sgrove](https://github.com/sgrove) for [cloudfuji/fire](https://github.com/cloudfuji/fire) 
+Special thanks to: 
+- [@sgrove](https://github.com/sgrove)
 
 ## License
 
-Copyright © 2020 FIXME
+Copyright © 2020 Alexander Oloo
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
