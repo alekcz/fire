@@ -35,9 +35,10 @@
 (defn request 
   "Request method used by other functions."
   [method db-name path data & [auth options]]
-  (let [request-options (reduce recursive-merge [{:query-params {:pretty-print true}}
+  (let [token (:token auth)
+        request-options (reduce recursive-merge [{:query-params {:pretty-print true}}
                                                  {:headers {"X-HTTP-Method-Override" (method http-type)}}
-                                                 (when auth {:headers {"Authorization" (str "Bearer "(:token auth))}})
+                                                 (when auth {:headers {"Authorization" (str "Bearer " (token))}})
                                                  (when (not (nil? data)) {:body (json/generate-string data)})
                                                  options])
         url (db-url db-name path)]

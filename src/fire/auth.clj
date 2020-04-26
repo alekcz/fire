@@ -14,5 +14,5 @@
           ^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
           ^ServiceAccountCredentials scoped (.createScoped cred ^Vector (into [] ["https://www.googleapis.com/auth/firebase.database"
                                                                                   "https://www.googleapis.com/auth/userinfo.email"]))]
-      {:token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)
+      {:token (fn [] (-> scoped ^AccessToken .refreshAccessToken .getTokenValue))
        :project-id (.getProjectId scoped)})))
