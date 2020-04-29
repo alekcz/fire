@@ -102,7 +102,7 @@
           _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true :pool conns}) homes))
           _ (Thread/sleep 3000)
           read (async/<!! (fire/read db path auth {:query {:shallow true} :async true :pool conns}))
-          _ (async/<!! (fire/write! db path (first homes) auth {:async true :pool conns}))
+          _ (async/<!! (fire/write! db path {:name "random"} auth {:async true :pool conns}))
           _ (fire/update! db path (second homes) auth {:async true :pool conns})
           read2 (fire/read db path auth {:async true :pool conns})
           _ (fire/delete! db path auth {:async true :pool conns})
