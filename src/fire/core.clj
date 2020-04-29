@@ -59,8 +59,7 @@
               (if (nil? res)
                 (async/close! res-ch)
                 (async/put! res-ch res)))) 
-          (fn [exception] 
-            (throw exception))))
+          (fn [exception] (throw exception))))
       (catch Exception e 
         (async/put! res-ch (ex-info (.getMessage ^Exception e) {:exception e}))))
       res-ch))  
