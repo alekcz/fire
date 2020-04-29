@@ -105,7 +105,7 @@
           _ (async/<!! (fire/write! db path {:name "random"} auth {:async true :pool conns}))
           _ (fire/update! db path (second homes) auth {:async true :pool conns})
           read2 (fire/read db path auth {:async true :pool conns})
-          _ (fire/delete! db path auth {:async false :pool conns})
+          _ (async/<!! (fire/delete! db path auth {:async true :pool conns}))
           _ (Thread/sleep 3000)
           read3 (fire/read db path auth {:async true :pool conns})]
     (is (= num (count (keys read))))
