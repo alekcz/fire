@@ -1,7 +1,9 @@
 (ns fire.core
-  (:require [clj-http.lite.client :as client]
+  (:require [clj-http.client :as client]
+            [clj-http.conn-mgr :as mgr]
             [fire.auth :as auth]
-            [cheshire.core :as json])            
+            [cheshire.core :as json]
+            [clojure.core.async :as async])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
@@ -22,6 +24,9 @@
     (merge-with recursive-merge a b)
     (if (map? a) a b)))
 
+(defn connection-pool [thread-count] 
+  (mgr/make-reusable-async-conn-manager {:timeout 10 :threads (min thread-count 100) :default-per-route (min thread-count 100)}))
+
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
   [db-name]
@@ -36,35 +41,61 @@
   "Request method used by other functions."
   [method db-name path data & [auth options]]
   (let [token (:token auth)
-        request-options (reduce recursive-merge [{:query-params {:pretty-print true}}
-                                                 {:headers {"X-HTTP-Method-Override" (method http-type)}}
-                                                 (when auth {:headers {"Authorization" (str "Bearer " (token))}})
-                                                 (when (not (nil? data)) {:body (json/generate-string data)})
-                                                 options])
-        url (db-url db-name path)]
-    (-> (client/post url request-options {:as :json})
-        :body
-        (json/decode true))))
+        res-ch (async/chan 1)]
+    (try
+      (let [request-options (reduce 
+                              recursive-merge [{:query-params {:pretty-print true}}
+                                              {:headers {"X-HTTP-Method-Override" (method http-type)}}
+                                              {:async? true}
+                                              (when (get options :pool false)
+                                              {:connection-manager (:pool options)})
+                                              (when auth {:headers {"Authorization" (str "Bearer " (token))}})
+                                              (when (not (nil? data)) {:body (json/generate-string data)})
+                                              (dissoc options :async)])
+            url (db-url db-name path)]
+        (client/post url request-options 
+          (fn [response] 
+            (let [res (-> response :body (json/decode true))]
+              (if (nil? res)
+                (async/close! res-ch)
+                (async/put! res-ch res)))) 
+          (fn [exception] 
+            (throw exception))))
+      (catch Exception e 
+        (async/put! res-ch (ex-info (.getMessage ^Exception e) {:exception e}))))
+      res-ch))  
 
 (defn write! 
   "Creates or destructively replaces data in a Firebase database at a given path"
-  [db-name path data & [auth options]]
-  (request :put db-name path data auth options))
+  [db-name path data auth & [options]]
+  (let [res (request :put db-name path data auth options)]
+    (if (:async (merge {} options auth))
+      res
+      (async/<!! res))))
 
 (defn update!
   "Updates data in a Firebase database at a given path via destructively merging."
-  [db-name path data & [auth options]]
-  (request :patch db-name path data auth options))
+  [db-name path data auth & [options]]
+  (let [res (request :patch db-name path data auth options)]
+    (if (:async (merge {} options auth))
+      res
+      (async/<!! res))))
 
 (defn push!
   "Appends data to a list in a Firebase db at a given path."
-  [db-name path data & [auth options]]
-  (request :post db-name path data auth options))
+  [db-name path data auth & [options]]
+  (let [res (request :post db-name path data auth options)]
+    (if (:async (merge {} options auth))
+      res
+      (async/<!! res))))
 
 (defn delete! 
   "Deletes data from Firebase database at a given path"
-  [db-name path & [auth options]]
-  (request :delete db-name path nil auth options))
+  [db-name path auth & [options]]
+  (let [res (request :delete db-name path nil auth options)]
+    (if (:async (merge {} options auth))
+      res
+      (async/<!! res))))
 
 (defn escape 
   "Surround all string with quotes"
@@ -73,8 +104,16 @@
 
 (defn read
   "Retrieves data from Firebase database at a given path"
-  [db-name path & [auth query options]]
-  (request :get db-name path nil auth (merge {:query-params (or (escape query) {})} options)))
+  [db-name path auth & [options]]
+  (let [res (request :get db-name path nil auth (merge {:query-params (or (escape (:query options)) {})} 
+                                                       (dissoc options :query)))]
+    (if (:async (merge {} options auth))
+      res
+      (async/<!! res))))
+
+
+(defn shutdown! [pool]
+  (clj-http.conn-mgr/shutdown-manager pool))
 
 ;to test graalvm compatibility
 (defn -main []

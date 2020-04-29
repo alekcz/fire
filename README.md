@@ -20,7 +20,7 @@ Write to the specified location (will overwrite any existing data):
 
 ```clojure
     (fire/write! "protected-db-name" "/path" {:map "with data"} auth)
-    (fire/write! "public-db-name" "/path" {:map "with data"})
+    (fire/write! "public-db-name" "/path" {:map "with data"} nil)
     ; => {:map "with data"}
 ```
 
@@ -28,7 +28,7 @@ Read data from the specified location:
 
 ```clojure
     (fire/read "protected-db-name" "/path" auth)
-    (fire/read "public-db-name" "/path")
+    (fire/read "public-db-name" "/path" nil)
     ; => {:map "with data"}
 ```
  
@@ -36,7 +36,7 @@ Read data from the specified location:
  
 ```clojure
      (fire/update! "protected-db-name" "/path" {:more "data"} auth)
-     (fire/update! "public-db-name" "/path" {:more "data"})
+     (fire/update! "public-db-name" "/path" {:more "data"} nil)
      ; => {:map "with data" :more "data"}
 ```
  
@@ -44,7 +44,7 @@ Add data at the specified location with an automatically generated key:
 
 ```clojure
      (fire/push! "protected-db-name" "/path" {:map "with data"} auth)
-     (fire/push! "public-db-name" "/path" {:map "with data"})
+     (fire/push! "public-db-name" "/path" {:map "with data"} nil)
      ; => {"name" "-IoZ3DZlTTQIkR0c7iVK"}
 ```
       
@@ -52,7 +52,7 @@ Delete at the specified locations:
 
 ```clojure
     (fire/delete! "protected-db-name" "/path" auth)
-    (fire/delete! "public-db-name" "/path")
+    (fire/delete! "public-db-name" "/path" nil)
     ; => nil
 ```
 
@@ -60,10 +60,10 @@ Query data at the specified locations:
 Note that if the child key is not indexed firebase will respond with error 400. Also `:orderBy` is required for all queries. 
 See the Firebase [query docs](https://firebase.google.com/docs/database/rest/retrieve-data#section-rest-filtering) for more info.
 ```clojure
-    (fire/read "protected-db-name" "/path" auth {:orderBy "child-key" :startAt 10 :endAt 50})
-    (fire/read "protected-db-name" "/path" auth {:orderBy "child-key" :equalTo 10})
-    (fire/read "public-db-name" "/path" nil {:orderBy "child-key" :limitToFirst 10})
-    (fire/read "public-db-name" "/path" nil {:orderBy "child-key" :limitToLast 3})
+    (fire/read "protected-db-name" "/path" auth {:query {:orderBy "child-key" :startAt 10 :endAt 50}})
+    (fire/read "protected-db-name" "/path" auth {:query {:orderBy "child-key" :equalTo 10}})
+    (fire/read "public-db-name" "/path" nil {:query {:orderBy "child-key" :limitToFirst 10}})
+    (fire/read "public-db-name" "/path" nil {:query {:orderBy "child-key" :limitToLast 3}})
     
     ; => nil
 ```
