@@ -50,7 +50,7 @@
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
                                               {:async? true}
                                               (when (get options :pool false)
-                                              {:connection-manager (:pool options)})
+                                                {:connection-manager (:pool options)})
                                               (when auth {:headers {"Authorization" (str "Bearer " (token))}})
                                               (when (not (nil? data)) {:body (json/generate-string data)})
                                               (dissoc options :async)])
