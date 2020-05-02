@@ -192,7 +192,8 @@
           db (:project-id auth)
           fake-auth {:token (fn [] "asdasdasd")}
           path (str "/fire-test/t-ex" (mg/generate string? {:size 10 :seed seed}))]
-      (is (= clojure.lang.ExceptionInfo (type (fire/read db path home auth))))
-      (is (= clojure.lang.ExceptionInfo (type (fire/read "fake.fake fake.fake" path home auth))))
-      (is (= clojure.lang.ExceptionInfo (type (fire/read db path home fake-auth))))
-      (is (= clojure.lang.ExceptionInfo (type (fire/read "dont-have-auth" path home auth)))))))
+      (is (= "failed" (try (fire/read db path home auth) (catch Exception _ "failed"))))
+      (is (= "failed" (try (fire/read "fake.fake fake.fake" path home auth) (catch Exception _ "failed"))))
+      (is (= "failed" (try (fire/read db path home fake-auth) (catch Exception _ "failed"))))
+      (is (= "failed" (try (fire/read "123" path home fake-auth) (catch Exception _ "failed"))))
+      (is (= "failed" (try (fire/read "dont-have-auth" path home auth) (catch Exception _ "failed")))))))
