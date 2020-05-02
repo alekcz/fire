@@ -25,7 +25,9 @@
     (if (map? a) a b)))
 
 (defn connection-pool [thread-count] 
-  (mgr/make-reusable-async-conn-manager {:timeout 10 :threads (min thread-count 100) :default-per-route (min thread-count 100)}))
+  (mgr/make-reusable-async-conn-manager  {:timeout 100 
+                                          :threads (min thread-count 100) 
+                                          :default-per-route (min thread-count 100)}))
 
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
