@@ -1,7 +1,6 @@
 (ns fire.core
   (:require [clj-http.client :as client]
             [clj-http.conn-mgr :as mgr]
-            [fire.auth :as auth]
             [cheshire.core :as json]
             [clojure.core.async :as async])            
   (:refer-clojure :exclude [read])
@@ -24,7 +23,9 @@
     (merge-with recursive-merge a b)
     (if (map? a) a b)))
 
-(defn connection-pool [thread-count] 
+(defn connection-pool 
+  "Create a connection pool for fast access to firebase"
+  [thread-count] 
   (mgr/make-reusable-async-conn-manager  {:timeout 100 
                                           :threads (min thread-count 100) 
                                           :default-per-route (min thread-count 100)}))
@@ -100,7 +101,7 @@
       (async/<!! res))))
 
 (defn escape 
-  "Surround all string with quotes"
+  "Surround all strings in query with quotes"
   [query]
   (apply merge (for [[k v] query]  {k (if (string? v) (str "\"" v "\"") v)})))
 
@@ -114,15 +115,7 @@
       (async/<!! res))))
 
 
-(defn shutdown! [pool]
+(defn shutdown! 
+  "Shutdown connection pool and the associated threads."
+  [pool]
   (clj-http.conn-mgr/shutdown-manager pool))
-
-;to test graalvm compatibility
-(defn -main []
-  (let [auth (auth/create-token :fire)
-        db (:project-id auth)
-        root "/fire-graalvm-test"]
-    (push! db root {:name "graal"} auth)
-    (write! db root {:name "graal"} auth)
-    (println (read db root auth))
-    (delete! db root auth)))

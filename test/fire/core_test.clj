@@ -27,8 +27,8 @@
         (assoc :num (inc r)))))
 
 (deftest prud-test
-  (testing "Push read update and delete data"
-    (let [_ (println "Push read and delete data")
+  (testing "Push read update and delete data test"
+    (let [_ (println "Push read and delete data test")
           seed 1
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
@@ -49,8 +49,8 @@
       (is (nil? read3)))))
 
 (deftest crud-test
-  (testing "Create read update and delete data"
-    (let [_ (println "Create read and delete data")
+  (testing "Create read update and delete data test"
+    (let [_ (println "Create read and delete data test")
           seed 2
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
@@ -68,8 +68,8 @@
       (is (nil? read3))))) 
 
 (deftest bulk-test
-  (testing "Bulk push read and delete data"
-    (let [_ (println "Bulk push read and delete data")
+  (testing "Bulk push read and delete data test"
+    (let [_ (println "Bulk push read and delete data test")
           seed 2
           num 100
           homes (random-homes num)
@@ -118,8 +118,8 @@
 
 
 (deftest limit-test
-  (testing "Limit responses"
-    (let [_ (println "Limit responses")
+  (testing "Limit responses test"
+    (let [_ (println "Limit responses test")
           seed 4
           num 10
           limit 2
@@ -169,14 +169,10 @@
     (cp/shutdown pool)
     (fire/shutdown! conns))))        
 
-(deftest run-test
-  (testing "Run test"
-    (do (println "Run test")
-      (is (str/includes? (with-out-str (fire/-main)) "{:name graal}")))))
-
 (deftest merge-test
-  (testing "Push read update and delete data"
-    (let [m1 {:one 2}
+  (testing "Merge function test"
+    (let [_ (println "Merge function test")
+          m1 {:one 2}
           m2 {:three 4}
           both {:one 2 :three 4}]
       (is (= both (fire/recursive-merge m1 m2)))
