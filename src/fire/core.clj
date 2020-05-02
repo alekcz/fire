@@ -50,6 +50,7 @@
                               recursive-merge [{:query-params {:pretty-print true}}
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
                                               {:async? true}
+                                              {:throw-entire-message? true}
                                               (when (get options :pool false)
                                                 {:connection-manager (:pool options)})
                                               (when auth {:headers {"Authorization" (str "Bearer " (token))}})
@@ -62,7 +63,7 @@
               (if (nil? res)
                 (async/close! res-ch)
                 (async/put! res-ch res)))) 
-          (fn [exception] (async/close! res-ch) (throw exception))))
+          (fn [_] )))
       (catch Exception e 
         (async/close! res-ch)
         (throw e)))

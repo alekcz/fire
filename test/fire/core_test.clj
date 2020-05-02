@@ -191,5 +191,6 @@
       (is (= "failed" (try (fire/read db path home auth) (catch Exception _ "failed"))))
       (is (= "failed" (try (fire/read "fake.fake fake.fake" path home auth) (catch Exception _ "failed"))))
       (is (= "failed" (try (fire/read db path home fake-auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/read "123" path home fake-auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/read "dont-have-auth" path home auth) (catch Exception _ "failed")))))))
+      (is (= "failed" (try (fire/read "dont-have-auth" path home auth) (catch Exception _ "failed"))))
+      (is (= "failed" (try (fire/request :get "ftp://www.example.com" {nil nil} auth) (catch Exception _ "failed"))))
+      nil)))
