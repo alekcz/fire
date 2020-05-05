@@ -2,7 +2,8 @@
   (:require [clj-http.client :as client]
             [clj-http.conn-mgr :as mgr]
             [cheshire.core :as json]
-            [clojure.core.async :as async])            
+            [clojure.core.async :as async]
+            [clojure.java.io :as io])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
@@ -38,7 +39,10 @@
 (defn db-url 
   "Returns a proper Firebase url given a database name and path"
   [db-name path]
-  (str (db-base-url db-name) path ".json"))
+  (let [url (try (str (io/as-url db-name)) (catch Exception _ nil))]
+    (if (nil? url)
+      (str (db-base-url db-name) path ".json")
+      (str url path ".json"))))
 
 (defn request 
   "Request method used by other functions."

@@ -14,7 +14,7 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 ## Usage
 
-`[alekcz/fire "0.2.4"]`
+`[alekcz/fire "0.2.5"]`
 
 Write to the specified location (will overwrite any existing data):
 

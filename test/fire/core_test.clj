@@ -55,7 +55,7 @@
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
           auth (fire-auth/create-token :fire)
-          db (:project-id auth)
+          db (str "https://" (:project-id auth) ".firebaseio.com") 
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           _ (fire/write! db path home auth)
           read1  (fire/read db path auth)
