@@ -1,7 +1,6 @@
 (ns fire.core-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [malli.generator :as mg]
-            [clojure.string :as str]
             [com.climate.claypoole :as cp]
             [fire.auth :as fire-auth]
             [fire.core :as fire]
@@ -54,7 +53,9 @@
           seed 2
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
-          auth (fire-auth/create-token :fire)
+          auth' (fire-auth/create-token :fire)
+          years (* 2 365 24 60 60 1000)
+          auth (update auth' :expiry - years)
           db (str "https://" (:project-id auth) ".firebaseio.com") 
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           _ (fire/write! db path home auth)
@@ -73,48 +74,44 @@
           seed 2
           num 100
           homes (random-homes num)
-          conns (fire/connection-pool num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 100)
-          _ (doall (cp/pmap pool #(fire/push! db path % auth {:pool conns}) homes))
-          read (fire/read db path auth {:query {:shallow true} :pool conns})
-          _ (fire/delete! db path auth {:pool conns})
-          read2  (fire/read db path auth {:pool conns})]
+          _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
+          read (fire/read db path auth {:query {:shallow true}})
+          _ (fire/delete! db path auth)
+          read2  (fire/read db path auth)]
       (is (= num (count (keys read))))
       (is (every? true? (vals read)))
       (is (nil? read2))
-      (cp/shutdown pool)
-      (fire/shutdown! conns))))     
+      (cp/shutdown pool))))     
 
 (deftest async-test
   (testing "Async test"
     (let [_ (println "Async test")
           seed 3
           num 10
-          conns (fire/connection-pool num)
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 10)
-          _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true :pool conns}) homes))
+          _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true}) homes))
           _ (Thread/sleep 6000)
-          read (async/<!! (fire/read db path auth {:query {:shallow true} :async true :pool conns}))
-          _ (async/<!! (fire/write! db path {:name "random"} auth {:async true :pool conns}))
-          _ (fire/update! db path (second homes) auth {:async true :pool conns})
-          _ (Thread/sleep 3000)
-          read2 (fire/read db path auth {:async true :pool conns})
-          _ (async/<!! (fire/delete! db path auth {:async true :pool conns}))
+          read (async/<!! (fire/read db path auth {:query {:shallow true} :async true}))
+          _ (async/<!! (fire/write! db path {:name "random"} auth {:async true}))
+          _ (fire/update! db path (second homes) auth {:async true})
           _ (Thread/sleep 6000)
-          read3 (fire/read db path auth {:async true :pool conns})]
+          read2 (fire/read db path auth {:async true})
+          _ (async/<!! (fire/delete! db path auth {:async true}))
+          _ (Thread/sleep 6000)
+          read3 (fire/read db path auth {:async true})]
     (is (= num (count (keys read))))
     (is (every? true? (vals read)))
     (is (= (second homes) (async/<!! read2)))
     (is (nil? (async/<!! read3)))
-    (cp/shutdown pool)
-    (fire/shutdown! conns)))) 
+    (cp/shutdown pool)))) 
 
 
 (deftest limit-test
@@ -125,18 +122,16 @@
           limit 2
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
-          conns (fire/connection-pool num)
           db (:project-id auth)
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 100)
-          _ (doall (cp/pmap pool #(fire/push! db path % auth {:pool conns}) homes))
+          _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
           read (fire/read db path auth {:query {:orderBy "$key" :limitToFirst limit}})
           read2  (fire/read db path auth)
           _ (fire/delete! db path auth)]
       (is (= limit (count (keys read))))
       (is (= num (count (keys read2))))
-      (cp/shutdown pool)
-      (fire/shutdown! conns))))
+      (cp/shutdown pool))))
 
 
 (deftest query-test
@@ -144,7 +139,6 @@
     (let [_ (println "Query test")
           seed 5
           num 100
-          conns (fire/connection-pool num)
           anchor (+ 30 (rand-int 69))
           start (rand-int 20)
           end  (+ 50 (rand-int 40))
@@ -153,7 +147,7 @@
           db (:project-id auth)
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 100)
-          _ (doall (cp/pmap pool #(fire/push! db path % auth  {:pool conns}) homes))
+          _ (doall (cp/pmap pool #(fire/push! db path % auth ) homes))
           read (fire/read db path auth)
           ord (sort (map name (keys read)))
           read2  (fire/read db path auth {:query {:orderBy "$key" :startAt (nth ord start) :endAt (nth ord end)}})
@@ -166,8 +160,7 @@
     (is (= (-> read3 vals first) 
             (-> read4 vals first) 
           seventh))
-    (cp/shutdown pool)
-    (fire/shutdown! conns))))        
+    (cp/shutdown pool))))        
 
 (deftest merge-test
   (testing "Merge function test"

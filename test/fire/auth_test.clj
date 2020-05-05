@@ -7,22 +7,29 @@
   (testing "Tests if a token is returned"
     (let [auth (fire-auth/create-token)
           token (:token auth)]
-      (is (not (str/blank? (token)))))))
+      (is (not (str/blank? token))))))
 
 (deftest nil-token-test
   (testing "Tests if a token is returned"
     (let [auth (fire-auth/create-token nil)
           token (:token auth)]
-      (is (not (str/blank? (token)))))))
+      (is (not (str/blank? token))))))
 
 (deftest keyword-token-test
   (testing "Tests if a token is returned"
     (let [auth (fire-auth/create-token :fire)
           token (:token auth)]
-      (is (not (str/blank? (token)))))))
+      (is (not (str/blank? token))))))
 
 (deftest string-token-test
   (testing "Tests if a token is returned"
     (let [auth (fire-auth/create-token "FIRE")
           token (:token auth)]
-      (is (not (str/blank? (token)))))))
+      (is (not (str/blank? token))))))
+
+
+(deftest new-token-test
+  (testing "Tests if a token is returned"
+    (let [auth (fire-auth/create-token "FIRE")
+          new-token (:new-token auth)]
+      (is (not (str/blank? (new-token)))))))

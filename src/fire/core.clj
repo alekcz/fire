@@ -1,6 +1,6 @@
 (ns fire.core
-  (:require [clj-http.client :as client]
-            [clj-http.conn-mgr :as mgr]
+  (:require [org.httpkit.client :as client]
+            [org.httpkit.sni-client :as sni-client]
             [cheshire.core :as json]
             [clojure.core.async :as async]
             [clojure.java.io :as io])            
@@ -24,13 +24,6 @@
     (merge-with recursive-merge a b)
     (if (map? a) a b)))
 
-(defn connection-pool 
-  "Create a connection pool for fast access to firebase"
-  [thread-count] 
-  (mgr/make-reusable-async-conn-manager  {:timeout 100 
-                                          :threads (min thread-count 100) 
-                                          :default-per-route (min thread-count 100)}))
-
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
   [db-name]
@@ -47,27 +40,27 @@
 (defn request 
   "Request method used by other functions."
   [method db-name path data & [auth options]]
-  (let [token (:token auth)
-        res-ch (async/chan 1)]
+  (let [res-ch (async/chan 1)]
     (try
-      (let [request-options (reduce 
+      (let [now (inst-ms (java.util.Date.))
+            token (if (< now (:expiry auth))
+                    (:token auth) 
+                    ((:new-token auth)))
+            request-options (reduce 
                               recursive-merge [{:query-params {:pretty-print true}}
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
-                                              {:async? true}
-                                              {:throw-entire-message? true}
-                                              (when (get options :pool false)
-                                                {:connection-manager (:pool options)})
-                                              (when auth {:headers {"Authorization" (str "Bearer " (token))}})
+                                              {:keepalive 600000}
+                                              (when auth {:headers {"Authorization" (str "Bearer " token)}})
                                               (when (not (nil? data)) {:body (json/generate-string data)})
                                               (dissoc options :async)])
             url (db-url db-name path)]
-        (client/post url request-options 
-          (fn [response] 
-            (let [res (-> response :body (json/decode true))]
-              (if (nil? res)
-                (async/close! res-ch)
-                (async/put! res-ch res)))) 
-          (fn [_] )))
+        (binding [org.httpkit.client/*default-client* sni-client/default-client]
+          (client/post url request-options 
+            (fn [response] 
+              (let [res (-> response :body (json/decode true))]
+                (if (nil? res)
+                  (async/close! res-ch)
+                  (async/put! res-ch res)))))))
       (catch Exception e 
         (async/close! res-ch)
         (throw e)))
@@ -118,9 +111,3 @@
     (if (:async (merge {} options auth))
       res
       (async/<!! res))))
-
-
-(defn shutdown! 
-  "Shutdown connection pool and the associated threads."
-  [pool]
-  (clj-http.conn-mgr/shutdown-manager pool))
