@@ -16,6 +16,14 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 `[alekcz/fire "0.2.6"]`
 
+Creating your auth token
+
+```clojure
+(require  '[fire.core :as fire]
+          '[fire.auth :as auth])
+(def auth (auth/create-token "GOOGLE_APPLICATION_CREDENTIALS"))
+```
+
 Write to the specified location (will overwrite any existing data):
 
 ```clojure

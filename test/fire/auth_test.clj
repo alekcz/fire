@@ -1,5 +1,5 @@
 (ns fire.auth-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [fire.auth :as fire-auth]))
 
