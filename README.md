@@ -14,7 +14,7 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 ## Usage
 
-`[alekcz/fire "0.2.6"]`
+`[alekcz/fire "0.2.7"]`
 
 Creating your auth token
 
