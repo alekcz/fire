@@ -6,7 +6,7 @@
 
 (set! *warn-on-reflection* 1)
 
-(def year (* 365 24 60 60 1000))
+(def half-an-hour (* 30 60 1000))
 
 (defn create-token 
   ([]
@@ -19,4 +19,4 @@
       {:new-token (fn [] (-> scoped ^AccessToken .refreshAccessToken .getTokenValue))
        :token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)
        :project-id (.getProjectId scoped)
-       :expiry (+ year (inst-ms (java.util.Date.)))})))
+       :expiry (+ half-an-hour (inst-ms (java.util.Date.)))})))
