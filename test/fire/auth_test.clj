@@ -26,10 +26,3 @@
     (let [auth (fire-auth/create-token "FIRE")
           token (:token auth)]
       (is (not (str/blank? token))))))
-
-
-(deftest new-token-test
-  (testing "Tests if a token is returned"
-    (let [auth (fire-auth/create-token "FIRE")
-          new-token (:new-token auth)]
-      (is (not (str/blank? (new-token)))))))

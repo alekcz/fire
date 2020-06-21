@@ -3,7 +3,8 @@
             [org.httpkit.sni-client :as sni-client]
             [cheshire.core :as json]
             [clojure.core.async :as async]
-            [clojure.java.io :as io])            
+            [clojure.java.io :as io]
+            [fire.auth :as fire-auth])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
@@ -45,7 +46,7 @@
       (let [now (inst-ms (java.util.Date.))
             token (if (< now (:expiry auth))
                     (:token auth) 
-                    ((:new-token auth)))
+                    (-> auth :env fire-auth/create-token :token))
             request-options (reduce 
                               recursive-merge [{:query-params {:pretty-print true}}
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
