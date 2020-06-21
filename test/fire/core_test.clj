@@ -100,17 +100,12 @@
           _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true}) homes))
           _ (Thread/sleep 20000)
           read (async/<!! (fire/read db path auth {:query {:shallow true} :async true}))
-          _ (async/<!! (fire/write! db path {:name "random"} auth {:async true}))
-          _ (fire/update! db path (second homes) auth {:async true})
-          _ (Thread/sleep 20000)
-          read2 (fire/read db path auth {:async true})
           _ (async/<!! (fire/delete! db path auth {:async true}))
-          _ (Thread/sleep 20000)
-          read3 (fire/read db path auth {:async true})]
+          _ (Thread/sleep 15000)
+          read2 (fire/read db path auth {:async true})]
     (is (= num (count (keys read))))
     (is (every? true? (vals read)))
-    (is (= (second homes) (async/<!! read2)))
-    (is (nil? (async/<!! read3)))
+    (is (nil? (async/<!! read2)))
     (cp/shutdown pool)))) 
 
 
