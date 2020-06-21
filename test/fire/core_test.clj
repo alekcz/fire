@@ -101,16 +101,13 @@
           _ (Thread/sleep 6000)
           read (async/<!! (fire/read db path auth {:query {:shallow true} :async true}))
           _ (async/<!! (fire/write! db path {:name "random"} auth {:async true}))
-          _ (async/<!! (fire/update! db path (second homes) auth {:async true}))
-          _ (Thread/sleep 6000)
-          read2 (fire/read db path auth {:async true})
+          _ (async/<!! (fire/update! db path {:name "random2"} auth {:async true}))
           _ (async/<!! (fire/delete! db path auth {:async true}))
           _ (Thread/sleep 6000)
-          read3 (fire/read db path auth {:async true})]
+          read2 (fire/read db path auth {:async true})]
     (is (= num (count (keys read))))
     (is (every? true? (vals read)))
-    (is (= (second homes) (async/<!! read2)))
-    (is (nil? (async/<!! read3)))
+    (is (nil? (async/<!! read2)))
     (cp/shutdown pool)))) 
 
 
