@@ -32,6 +32,7 @@
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
           auth nil
+          _ (Thread/sleep 20000)
           db "http://localhost:9000"
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           resp (fire/push! db path home auth)

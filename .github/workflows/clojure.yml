@@ -19,7 +19,7 @@ jobs:
       run: |
         docker-compose pull
         docker-compose up -d
-        sleep 30
+        sleep 5
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)
         docker-compose down
