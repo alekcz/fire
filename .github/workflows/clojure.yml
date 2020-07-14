@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build env
-        run: docker-compose up -d
+      run: docker-compose up -d
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
@@ -24,4 +24,4 @@ jobs:
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)
     - name: Clean env
-        run: docker-compose down
+      run: docker-compose down
