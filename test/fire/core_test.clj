@@ -25,6 +25,28 @@
     (-> (mg/generate home {:size (+ (mod r 10) 11) :seed r}) 
         (assoc :num (inc r)))))
 
+(deftest no-auth-test
+  (testing "No auth push and read"
+    (let [_ (println "No auth push and read")
+          seed 1
+          home (first (random-homes 1))
+          updated-home (update-in home [:address :number] inc)
+          auth nil
+          db "http://localhost:9000"
+          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          resp (fire/push! db path home auth)
+          npath (str path "/" (:name resp))
+          read0  (fire/read db path auth)
+          read1  (fire/read db npath auth)
+          _ (fire/update! db npath updated-home auth)
+          read2  (fire/read db npath auth)
+          _ (fire/delete! db npath auth)
+          read3  (fire/read db npath auth)]
+      (is (not= home read0))
+      (is (= home read1))
+      (is (= updated-home read2))
+      (is (nil? read3)))))
+
 (deftest prud-test
   (testing "Push read update and delete data test"
     (let [_ (println "Push read and delete data test")
@@ -182,5 +204,4 @@
       (is (= "failed" (try (fire/read "fake.fake fake.fake" path home auth) (catch Exception _ "failed"))))
       (is (= "failed" (try (fire/read db path home fake-auth) (catch Exception _ "failed"))))
       (is (= "failed" (try (fire/read "dont-have-auth" path home auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/request :get "ftp://www.example.com" {nil nil} auth) (catch Exception _ "failed"))))
       nil)))

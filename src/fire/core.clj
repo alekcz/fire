@@ -44,9 +44,10 @@
   (let [res-ch (async/chan 1)]
     (try
       (let [now (inst-ms (java.util.Date.))
-            token (if (< now (:expiry auth))
-                    (:token auth) 
-                    (-> auth :env fire-auth/create-token :token))
+            token (when auth 
+                    (if (< now (:expiry auth))
+                      (:token auth) 
+                      (-> auth :env fire-auth/create-token :token)))
             request-options (reduce 
                               recursive-merge [{:query-params {:pretty-print true}}
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
