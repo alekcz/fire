@@ -1,3 +1,3 @@
 #!/bin/bash
-chmod +x ./tesh.sh        
+chmod +x ./test.sh        
 firebase emulators:exec --only database ./test.sh
