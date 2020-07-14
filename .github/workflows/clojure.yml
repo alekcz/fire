@@ -13,13 +13,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Build env
+        run: docker-compose up -d
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
-        docker-compose up -d
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)
-        docker-compose down
+    - name: Clean env
+        run: docker-compose down
