@@ -7,16 +7,17 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
+  docker:
     steps:
     - uses: actions/checkout@v2
     - name: Build env
       run: |
         docker-compose up -d
         sleep 20
+  build:
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
