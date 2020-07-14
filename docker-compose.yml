@@ -1,6 +1,6 @@
 version: '3'
 services:
   firebase:
-    image: "alekcz/firebase-emulator"
+    image: "alekcz/firebase-emulator:latest"
     ports:
       - "9000:9000"

@@ -17,9 +17,5 @@ jobs:
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
-        docker-compose pull
-        docker-compose up
-        sleep 5
-        lein cloverage --codecov
+        bash ./ci.sh
         bash <(curl -s https://codecov.io/bash)
-        docker-compose down

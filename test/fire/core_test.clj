@@ -187,7 +187,7 @@
 (deftest no-auth-test
   (testing "No auth push and read"
     (let [_ (println "No auth push and read")
-          seed 1
+          seed 99
           home (first (random-homes 1))
           updated-home (update-in home [:address :number] inc)
           auth nil
