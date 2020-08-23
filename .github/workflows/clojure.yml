@@ -13,13 +13,13 @@ jobs:
     - uses: actions/checkout@v2
     
     - name: Cache GraalVM
-        uses: actions/cache@v1
-        id: cache-graalvm
-        with:
-          path: ~/graalvm-ce-java8-20.0.0
-          key: ${{ runner.os }}-graalvm-20.0.0
-          restore-keys: |
-                ${{ runner.os }}-graalvm-20.0.0
+      uses: actions/cache@v1
+      id: cache-graalvm
+      with:
+        path: ~/graalvm-ce-java8-20.0.0
+        key: ${{ runner.os }}-graalvm-20.0.0
+        restore-keys: |
+              ${{ runner.os }}-graalvm-20.0.0
 
     - name: Download GraalVM
       run: |
