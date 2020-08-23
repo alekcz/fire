@@ -42,7 +42,6 @@ jobs:
         source ~/.profile
         npm install -g firebase-tools@8.5.0
         bash ./ci.sh
-        bash ./graaltest.sh
 
     - name: Build Linux native image
       env:

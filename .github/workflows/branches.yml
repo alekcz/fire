@@ -14,7 +14,6 @@ jobs:
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         NPM_CONFIG_PREFIX: ~/.npm-global
-        _JAVA_OPTIONS: -Xmx6g
       run: |
         mkdir -p ~/.npm-global
         npm config set prefix '~/.npm-global'
@@ -22,4 +21,3 @@ jobs:
         source ~/.profile
         npm install -g firebase-tools@8.5.0
         bash ./ci.sh
-        bash ./graaltest.sh
