@@ -8,7 +8,7 @@
                   [cheshire "5.10.0"]
                   [environ "1.2.0"]
                   [org.clojure/core.async "1.1.587"]]
-  :plugins [[lein-cloverage "1.1.2"]]
+  :plugins [[lein-cloverage "1.2.0"]]
   :aot :all
   :main fire.core
   :uberjar-name "fire.jar"
