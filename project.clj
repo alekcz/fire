@@ -11,7 +11,6 @@
   :plugins [[lein-cloverage "1.2.0"]]
   :aot :all
   :main fire.core
-  :uberjar-name "fire.jar"
   :repl-options {:init-ns fire.core}
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
