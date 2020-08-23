@@ -58,7 +58,7 @@
               res (-> res' :body (json/decode true))]
               (when (= (:status res') 200)
                 {:token (:access_token res)
-                  :expiry (+ (now) (:expires_in res) -5)
+                  :expiry (+ (now) 1800)
                   :project-id (:project_id auth)
                   :type (:type auth)}))
                   ))))             

@@ -24,7 +24,6 @@
     "--allow-incomplete-classpath"
     "--initialize-at-build-time"
     "--no-fallback"
-    "-H:+PrintHeapHistogram"
     "--enable-url-protocols=http,https"
     "-jar" "./target/${:uberjar-name:-${:name}-${:version}-standalone.jar}"
     "-H:Name=./target/${:name}"]
