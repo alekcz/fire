@@ -33,7 +33,6 @@ jobs:
       env: 
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         NPM_CONFIG_PREFIX: ~/.npm-global
       run: |
         mkdir -p ~/.npm-global
@@ -46,6 +45,9 @@ jobs:
     - name: Build Linux native image
       env:
         _JAVA_OPTIONS: -Xmx6g
+        FIRE: ${{ secrets.FIRE }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
         export GRAALVM_HOME=~/graalvm-ce-java8-20.2.0
         export JAVA_HOME=~/graalvm-ce-java8-20.2.0/Contents/Home
