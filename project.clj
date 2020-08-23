@@ -5,7 +5,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [ [org.clojure/clojure "1.10.0"]
                   [alekcz/googlecredentials "3.0.1"]
-                  [http-kit "2.4.0-RC1"]
+                  [http-kit "2.5.0-alpha1"]
                   [cheshire "5.10.0"]
                   [org.clojure/core.async "1.1.587"]]
   :plugins [[lein-cloverage "1.1.2"]]
