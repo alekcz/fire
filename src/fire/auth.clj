@@ -4,8 +4,6 @@
 
 (set! *warn-on-reflection* 1)
 
-(def half-an-hour (* 30 60 1000))
-
 (defn create-token 
   ([]
     (create-token nil))
