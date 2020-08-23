@@ -113,3 +113,14 @@
     (if (:async (merge {} options auth))
       res
       (async/<!! res))))
+
+(defn -main []
+  (let [auth (fire-auth/create-token :fire)
+        db (:project-id auth)
+        root "/fire-graalvm-test"]
+    (push! db root {:originalname "graalvm"} auth)
+    (write! db root {:name "graal"} auth)
+    (let [res (read db root auth)]
+      (delete! db root auth)
+      (println res)
+      res)))

@@ -3,7 +3,7 @@
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [ [org.clojure/clojure "1.10.0"]
+  :dependencies [ [org.clojure/clojure "1.9.0"]
                   [alekcz/googlecredentials "3.0.1"]
                   [http-kit "2.5.0-alpha2"]
                   [cheshire "5.10.0"]
@@ -11,7 +11,23 @@
   :plugins [[lein-cloverage "1.1.2"]]
   :aot :all
   :main fire.core
+  :uberjar-name "fire.jar"
   :repl-options {:init-ns fire.core}
-  :profiles { :dev {:dependencies [  [com.climate/claypoole "1.1.4"]
-                                     [metosin/malli "0.0.1-20200404.091302-14"]]}})
+  :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
+                    :dependencies [  [com.climate/claypoole "1.1.4"]
+                                     [metosin/malli "0.0.1-20200404.091302-14"]]}}
+  :aliases
+  {"native"
+   ["shell"
+    "native-image" 
+    "--report-unsupported-elements-at-runtime" 
+    "--no-server"
+    "--allow-incomplete-classpath"
+    "--initialize-at-build-time"
+    "--no-fallback"
+    "--enable-url-protocols=http,https"
+    "-jar" "./target/${:uberjar-name:-${:name}-${:version}-standalone.jar}"
+    "-H:Name=./target/${:name}"]
+
+   "run-native" ["shell" "./target/${:name}"]})
 
