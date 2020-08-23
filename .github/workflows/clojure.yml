@@ -29,25 +29,11 @@ jobs:
           tar xzf graalvm-ce-java8-linux-amd64-20.2.0.tar.gz
         fi 
 
-    - name: Run tests
-      env: 
-        FIRE: ${{ secrets.FIRE }}
-        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-        NPM_CONFIG_PREFIX: ~/.npm-global
-      run: |
-        mkdir -p ~/.npm-global
-        npm config set prefix '~/.npm-global'
-        export PATH=~/.npm-global/bin:$PATH
-        source ~/.profile
-        npm install -g firebase-tools@8.5.0
-        bash ./ci.sh
-
-    - name: Build Linux native image
+    - name: Build native image
       env:
         _JAVA_OPTIONS: -Xmx6g
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
         export GRAALVM_HOME=~/graalvm-ce-java8-20.2.0
         export JAVA_HOME=~/graalvm-ce-java8-20.2.0/Contents/Home
@@ -56,4 +42,21 @@ jobs:
         java -version
         gu install native-image
         bash ./graaltest.sh
+
+    - name: Run tests
+      env: 
+        FIRE: ${{ secrets.FIRE }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        NPM_CONFIG_PREFIX: ~/.npm-global
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      run: |
+        mkdir -p ~/.npm-global
+        npm config set prefix '~/.npm-global'
+        export PATH=~/.npm-global/bin:$PATH
+        source ~/.profile
+        npm install -g firebase-tools@8.5.0
+        bash ./ci.sh
         bash <(curl -s https://codecov.io/bash)
+
+
+        
