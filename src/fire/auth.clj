@@ -1,7 +1,5 @@
 (ns fire.auth
-  (:require [googlecredentials.core :as g-cred])
-  (:import 	[com.google.auth.oauth2 ServiceAccountCredentials AccessToken]
-            [java.util Vector])
+  (:require [fire.oauth2 :as oauth2])
   (:gen-class))
 
 (set! *warn-on-reflection* 1)
@@ -13,10 +11,5 @@
     (create-token nil))
   ([env-var]
     (let [env-var (if (nil? env-var) "GOOGLE_APPLICATION_CREDENTIALS" env-var)
-          ^ServiceAccountCredentials cred (g-cred/load-service-credentials env-var)
-          ^ServiceAccountCredentials scoped (.createScoped cred ^Vector (into [] ["https://www.googleapis.com/auth/firebase.database"
-                                                                                  "https://www.googleapis.com/auth/userinfo.email"]))]
-      {:env env-var
-       :token (-> scoped ^AccessToken .refreshAccessToken .getTokenValue)
-       :project-id (.getProjectId scoped)
-       :expiry (+ half-an-hour (inst-ms (java.util.Date.)))})))
+          auth (oauth2/get-token env-var)]
+      (merge auth {:env env-var}))))

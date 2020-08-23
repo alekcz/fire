@@ -43,7 +43,7 @@
   [method db-name path data & [auth options]]
   (let [res-ch (async/chan 1)]
     (try
-      (let [now (inst-ms (java.util.Date.))
+      (let [now (quot (inst-ms (java.util.Date.)) 1000)
             token (when auth 
                     (if (< now (:expiry auth))
                       (:token auth) 
@@ -113,3 +113,14 @@
     (if (:async (merge {} options auth))
       res
       (async/<!! res))))
+
+(defn -main []
+  (let [auth (fire-auth/create-token :fire)
+        db (:project-id auth)
+        root "/fire-graalvm-test"]
+    (push! db root {:originalname "graalvm"} auth)
+    (write! db root {:name "graal"} auth)
+    (let [res (read db root auth)]
+      (delete! db root auth)
+      (println res)
+      res)))
