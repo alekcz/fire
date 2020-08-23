@@ -21,7 +21,7 @@
 (defn str->private-key [keystr']
   (let [^Base64$Decoder b64decoder (. Base64 getDecoder)
         ^KeyFactory kf (KeyFactory/getInstance "RSA")
-        keystr (-> keystr' (str/replace "\n" "") (str/replace "-----BEGIN PRIVATE KEY-----" "") (str/replace "-----END PRIVATE KEY-----" ""))]
+        ^String keystr (-> keystr' (str/replace "\n" "") (str/replace "-----BEGIN PRIVATE KEY-----" "") (str/replace "-----END PRIVATE KEY-----" ""))]
          (->> keystr
           (.decode b64decoder)
           (PKCS8EncodedKeySpec.)
@@ -37,7 +37,7 @@
         claims (json/encode claims')
         jwtbody (str (encode header) "." (encode claims))]
         (.initSign sig priv-key)
-        (.update sig (.getBytes jwtbody "UTF-8"))
+        (.update sig (.getBytes ^String jwtbody "UTF-8"))
         (str jwtbody "." (rencode (.sign sig)))))
 
 (defn get-token [env-var]
