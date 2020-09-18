@@ -11,7 +11,7 @@
 (set! *warn-on-reflection* 1)
 
 (def firebase-root "firebaseio.com")
-
+(def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 (def http-type {:get    "GET"
                 :post   "POST"
                 :put    "PUT"
@@ -56,7 +56,7 @@
                                               (when (not (nil? data)) {:body (json/generate-string data)})
                                               (dissoc options :async)])
             url (db-url db-name path)]
-        (binding [org.httpkit.client/*default-client* sni-client/default-client]
+        (binding [org.httpkit.client/*default-client* sni-client]
           (client/post url request-options 
             (fn [response] 
               (let [res (-> response :body (json/decode true))]
