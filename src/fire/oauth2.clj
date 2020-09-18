@@ -42,7 +42,8 @@
 
 (defn get-token [env-var]
   (let [auth (-> env-var clean-env-var env (json/decode true))]
-    (when (:private_key auth)
+    (if-not (:private_key auth)
+      nil
       (binding [org.httpkit.client/*default-client* sni-client/default-client]
         (let [scopes "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email"
               aud "https://oauth2.googleapis.com/token"
@@ -57,6 +58,7 @@
                                     :method :post })
               res (-> res' :body (json/decode true))]
               (when (= (:status res') 200)
+                nil
                 {:token (:access_token res)
                   :expiry (+ (now) (:expires_in res) -5)
                   :project-id (:project_id auth)

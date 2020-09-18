@@ -26,3 +26,8 @@
     (let [auth (fire-auth/create-token "FIRE")
           token (:token auth)]
       (is (not (str/blank? token))))))
+
+(deftest non-existent-token-test
+  (testing "Tests non-existent token"
+    (let [auth (fire-auth/create-token :non-existent-key)]
+      (is (= {:env :non-existent-key} auth)))))
