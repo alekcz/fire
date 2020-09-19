@@ -17,6 +17,9 @@
                 :put    "PUT"
                 :patch  "PATCH"
                 :delete "DELETE"})
+(defn thrower [res]
+  (when (instance? Throwable res) (throw res))
+  res)
 
 (defn recursive-merge
   "Recursively merge hash maps."
@@ -59,13 +62,18 @@
         (binding [org.httpkit.client/*default-client* sni-client]
           (client/post url request-options 
             (fn [response] 
-              (let [res (-> response :body (json/decode true))]
-                (if (nil? res)
-                  (async/close! res-ch)
-                  (async/put! res-ch res)))))))
+              (let [res (-> response :body (json/decode true))
+                    error (:error response)]
+                (if error 
+                  (do 
+                    (async/put! res-ch error)
+                    (async/close! res-ch))
+                  (if (nil? res)
+                    (async/close! res-ch)
+                    (async/put! res-ch res))))))))
       (catch Exception e 
-        (async/close! res-ch)
-        (throw e)))
+        (async/put! res-ch e)
+        (async/close! res-ch)))
       res-ch))  
 
 (defn write! 
@@ -74,7 +82,7 @@
   (let [res (request :put db-name path data auth options)]
     (if (:async (merge {} options auth))
       res
-      (async/<!! res))))
+      (-> res async/<!! thrower))))
 
 (defn update!
   "Updates data in a Firebase database at a given path via destructively merging."
@@ -82,7 +90,7 @@
   (let [res (request :patch db-name path data auth options)]
     (if (:async (merge {} options auth))
       res
-      (async/<!! res))))
+      (-> res async/<!! thrower))))
 
 (defn push!
   "Appends data to a list in a Firebase db at a given path."
@@ -90,7 +98,7 @@
   (let [res (request :post db-name path data auth options)]
     (if (:async (merge {} options auth))
       res
-      (async/<!! res))))
+      (-> res async/<!! thrower))))
 
 (defn delete! 
   "Deletes data from Firebase database at a given path"
@@ -98,7 +106,7 @@
   (let [res (request :delete db-name path nil auth options)]
     (if (:async (merge {} options auth))
       res
-      (async/<!! res))))
+      (-> res async/<!! thrower))))
 
 (defn escape 
   "Surround all strings in query with quotes"
@@ -112,7 +120,7 @@
                                                        (dissoc options :query)))]
     (if (:async (merge {} options auth))
       res
-      (async/<!! res))))
+      (-> res async/<!! thrower))))
 
 (defn -main []
   (let [auth (fire-auth/create-token :fire)

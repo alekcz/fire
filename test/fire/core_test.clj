@@ -205,3 +205,13 @@
       (is (= home read1))
       (is (= updated-home read2))
       (is (nil? read3)))))      
+
+(deftest denied-test
+  (testing "Error in response"
+    (let [_ (println "Error in reponse")
+          auth nil
+          data {:test "test"}
+          db "http://localhost:1001"
+          path "irrelevant"]
+      (is (= "failed" (try (fire/push! db path data auth) (catch Exception _ "failed")))))))      
+      
