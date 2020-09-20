@@ -6,15 +6,16 @@ A lightweight clojure client for Firebase based using the REST API. Basically [C
 
 ![master](https://github.com/alekcz/fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/fire/branch/master/graph/badge.svg?token=ahELyNhNVg)](https://codecov.io/gh/alekcz/fire)      
 
-_Pre-alpha_
-
 ## Prerequisites
 
-For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
+For fire you will need to create a Realtime Database on Firebase and retrieve the service account credentials.
+
+1. Get the json file containing your service account creditials by following the instruction here https://cloud.google.com/docs/authentication/getting-started
+2. Copy the contents of your .json into the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. In your ~/.bash_profile and in Travis CI you should escape your credentials using singe quotes (').
 
 ## Usage
 
-`[alekcz/fire "0.2.10"]`
+`[alekcz/fire "0.3.0"]`
 
 Creating your auth token
 
