@@ -11,7 +11,7 @@ A lightweight clojure client for Firebase based using the REST API. Basically [C
 For fire you will need to create a Realtime Database on Firebase and retrieve the service account credentials.
 
 1. Get the json file containing your service account creditials by following the instruction here https://cloud.google.com/docs/authentication/getting-started
-2. Copy the contents of your .json into the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. In your ~/.bash_profile and in Travis CI you should escape your credentials using singe quotes (').
+2. Copy the contents of your .json into the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. In your `~/.bash_profile` and in Travis CI you should escape your credentials using singe quotes (').
 
 ## Usage
 
