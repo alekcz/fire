@@ -4,7 +4,7 @@ A lightweight clojure client for Firebase based using the REST API. Basically [C
 
 # Status
 
-![master](https://github.com/alekcz/fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/fire/branch/master/graph/badge.svg?token=ahELyNhNVg)](https://codecov.io/gh/alekcz/fire)      
+![master](https://github.com/alekcz/fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/fire/branch/master/graph/badge.svg?token=ahELyNhNVg)](https://codecov.io/gh/alekcz/fire) [![Clojars Project](https://img.shields.io/clojars/v/alekcz/fire.svg)](https://clojars.org/alekcz/fire)      
 
 ## Prerequisites
 
