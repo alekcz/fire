@@ -173,15 +173,15 @@
   (testing "Exception test"
     (let [_ (println "Exception test")
           seed 6
-          home (first (random-homes 1))
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
           fake-auth {:token (fn [] "asdasdasd")}
+          corrupted-auth {:expiry "12345"}
           path (str "/fire-test/t-ex" (mg/generate string? {:size 10 :seed seed}))]
-      (is (= "failed" (try (fire/read db path home auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/read "fake.fake fake.fake" path home auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/read db path home fake-auth) (catch Exception _ "failed"))))
-      (is (= "failed" (try (fire/read "dont-have-auth" path home auth) (catch Exception _ "failed"))))
+      (is (contains? (fire/read db path fake-auth) :error))
+      (is (contains? (fire/read "dont-have-auth" path auth) :error))
+      (is (contains? (try (fire/read "fake.fake fake.fake" path auth) (catch Exception _ {:error true})) :error))
+      (is (contains? (try (fire/read db path corrupted-auth)(catch Exception _ {:error true})) :error))
       nil)))
 
 (deftest no-auth-test
