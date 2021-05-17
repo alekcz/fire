@@ -1,10 +1,10 @@
 (ns fire.core
   (:require [org.httpkit.client :as client]
             [org.httpkit.sni-client :as sni-client]
-            [cheshire.core :as json]
             [clojure.core.async :as async]
             [clojure.java.io :as io]
-            [fire.auth :as fire-auth])            
+            [fire.auth :as fire-auth]
+            [fire.utils :as utils])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
@@ -46,9 +46,8 @@
   [method db-name path data & [auth options]]
   (let [res-ch (async/chan 1)]
     (try
-      (let [now (quot (inst-ms (java.util.Date.)) 1000)
-            token (when auth 
-                    (if (< now (:expiry auth))
+      (let [token (when (:expiry auth) 
+                    (if (< (utils/now) (:expiry auth))
                       (:token auth) 
                       (-> auth :env fire-auth/create-token :token)))
             request-options (reduce 
@@ -56,13 +55,13 @@
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
                                               {:keepalive 600000}
                                               (when auth {:headers {"Authorization" (str "Bearer " token)}})
-                                              (when (not (nil? data)) {:body (json/generate-string data)})
+                                              (when (not (nil? data)) {:body (utils/encode data)})
                                               (dissoc options :async)])
             url (db-url db-name path)]
         (binding [org.httpkit.client/*default-client* sni-client]
           (client/post url request-options 
             (fn [response] 
-              (let [res (-> response :body (json/decode true))
+              (let [res (-> response :body utils/decode)
                     error (:error response)]
                 (if error 
                   (do 
