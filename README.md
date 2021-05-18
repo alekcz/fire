@@ -15,7 +15,7 @@ For fire you will need to create a Realtime Database on Firebase and retrieve th
 
 ## Usage
 
-`[alekcz/fire "0.3.1"]`
+`[alekcz/fire "0.3.2"]`
 
 Creating your auth token
 

@@ -145,6 +145,7 @@
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 100)
           _ (doall (cp/pmap pool #(fire/push! db path % auth ) homes))
+          _ (Thread/sleep 2000)
           read (fire/read db path auth)
           ord (sort (map name (keys read)))
           read2  (fire/read db path auth {:query {:orderBy "$key" :startAt (nth ord start) :endAt (nth ord end)}})
