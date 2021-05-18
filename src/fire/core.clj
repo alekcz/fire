@@ -55,7 +55,7 @@
                                               {:headers {"X-HTTP-Method-Override" (method http-type)}}
                                               {:keepalive 600000}
                                               (when auth {:headers {"Authorization" (str "Bearer " token)}})
-                                              (when (not (nil? data)) {:body (utils/encode data)})
+                                              (when-not (nil? data) {:body (utils/encode data)})
                                               (dissoc options :async)])
             url (db-url db-name path)]
         (binding [org.httpkit.client/*default-client* sni-client]
@@ -64,15 +64,12 @@
               (let [res (-> response :body utils/decode)
                     error (:error response)]
                 (if error 
-                  (do 
-                    (async/put! res-ch error)
-                    (async/close! res-ch))
-                  (if (nil? res)
-                    (async/close! res-ch)
-                    (async/put! res-ch res))))))))
+                  (async/put! res-ch error)
+                  (when-not (nil? res) (async/put! res-ch res)))
+                (when-not (nil? res-ch) (async/close! res-ch)))))))
       (catch Exception e 
         (async/put! res-ch e)
-        (async/close! res-ch)))
+        (when-not (nil? res-ch) (async/close! res-ch))))
       res-ch))  
 
 (defn write! 
