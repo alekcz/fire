@@ -66,10 +66,10 @@
                 (if error 
                   (async/put! res-ch error)
                   (when-not (nil? res) (async/put! res-ch res)))
-                (when-not (nil? res-ch) (async/close! res-ch)))))))
+                (async/close! res-ch))))))
       (catch Exception e 
         (async/put! res-ch e)
-        (when-not (nil? res-ch) (async/close! res-ch))))
+        (async/close! res-ch)))
       res-ch))  
 
 (defn write! 
