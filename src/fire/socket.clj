@@ -6,6 +6,8 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clj-uuid :as uuid]) 
+  (:import [org.eclipse.jetty.websocket.client WebSocketClient]
+           [org.eclipse.jetty.websocket.common WebSocketSession])            
   (:refer-clojure :exclude [read])           
   (:gen-class))
 
@@ -54,27 +56,32 @@
     (if (nil? url) (base-url db-name) db-name)))
 
 (defn connect [db-name auth]
-  (let [clean (fn [d] (-> d u/decode extract))
-        ex (fn [e] (prep-ex (.getMessage e) e))
-        chan (async/chan (async/buffer 16384) (map clean) ex)
-        url (socket-url db-name)
-        conn (atom {:socket nil :count 0 :channel chan :auth auth :db db-name})
+  (let [url (socket-url db-name)
+        conn (atom {:socket nil :count 0 :auth auth :db db-name})
+        client (let [^WebSocketClient ws (ws/client)]
+                  ;; (.setMaxTextMessageBufferSize ws 256000)
+                  ;; (.setMaxBinaryMessageBufferSize ws 256000)
+                  (.setStopAtShutdown ws true)
+                  (.start ws)
+                  ws)
         socket (ws/connect (str url "/.ws?v=" version) 
-                :on-close (fn [state] (println state))
-                :on-error (fn [t] (thrower t))
+                :client client
+                :on-close (fn [a b] 
+                            (println a b)
+                            (.stop client))
                 :on-receive (fn [d'] 
-                              (println d')
+                              (Thread/sleep 3000)
                               (let [d (extract d')
                                     k (-> d first to-key)
                                     c (when k (k @conn))]
                                 (when-not (or (nil? k) (nil? c))
                                   (if (second d)
                                     (async/put! c (second d))
-                                    (async/close! c))))))]
+                                    (async/close! c))))
+                                nil)
+                :on-error (fn [t] (thrower t)))]
     (swap! conn assoc :socket socket)                            
-    (when auth 
-      (async/take! (-> @conn :channel) identity)
-      (send! conn "gauth" {:cred (:token auth)}))
+    (when auth (send! conn "gauth" {:cred (:token auth)}))
     conn))
 
 (defn refresh [conn]
