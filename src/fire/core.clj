@@ -10,7 +10,6 @@
 
 (set! *warn-on-reflection* 1)
 
-(def firebase-root "firebaseio.com")
 (def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 (def http-type {:get    "GET"
                 :post   "POST"
@@ -31,7 +30,7 @@
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
   [db-name]
-  (str "https://" db-name "." firebase-root))
+  (str "https://" db-name "." utils/firebase-root))
 
 (defn db-url 
   "Returns a proper Firebase url given a database name and path"
@@ -52,7 +51,8 @@
                       (-> auth :env fire-auth/create-token :token)))
             request-options (reduce 
                               recursive-merge [{:query-params {:pretty-print true}}
-                                              {:headers {"X-HTTP-Method-Override" (method http-type)}}
+                                              {:headers {"X-HTTP-Method-Override" (method http-type)
+                                                         "Connection" "keep-alive"}}
                                               {:keepalive 600000}
                                               (when auth {:headers {"Authorization" (str "Bearer " token)}})
                                               (when-not (nil? data) {:body (utils/encode data)})

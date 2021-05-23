@@ -2,6 +2,8 @@
   (:require [jsonista.core :as j])
   (:gen-class))
 
+(def firebase-root "firebaseio.com")
+
 (def mapper
   (j/object-mapper
     {:encode-key-fn name
