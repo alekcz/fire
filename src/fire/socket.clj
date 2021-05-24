@@ -34,6 +34,9 @@
 (defn to-key [num]
   (when num (keyword (str "f" num))))
 
+(defn to-num [num]
+  (when num (keyword (str "f" num))))
+
 (defn send! [conn a msg & [read?]]
   (let [sock (-> @conn :socket)
         count (-> @conn :count inc)
@@ -57,7 +60,8 @@
 
 (defn connect [db-name auth]
   (let [url (socket-url db-name)
-        conn (atom {:socket nil :count 0 :auth auth :db db-name})
+        conn (atom {:socket nil :count 0 :auth auth :db db-name :chunks 0 :temp ""})
+        ;; buffer (async/chan 16384) ;max transfer from firebase is 256 MB which is ~15625 chucnks
         client (let [^WebSocketClient ws (ws/client)]
                   ;; (.setMaxTextMessageBufferSize ws 256000)
                   ;; (.setMaxBinaryMessageBufferSize ws 256000)
@@ -70,15 +74,23 @@
                             (println a b)
                             (.stop client))
                 :on-receive (fn [d'] 
-                              (Thread/sleep 3000)
-                              (let [d (extract d')
-                                    k (-> d first to-key)
-                                    c (when k (k @conn))]
-                                (when-not (or (nil? k) (nil? c))
-                                  (if (second d)
-                                    (async/put! c (second d))
-                                    (async/close! c))))
-                                nil)
+                              (let [len (count d')]
+                                (-> @conn :chunks println)
+                                (if (= len 1)
+                                  (swap! conn assoc :chunks (Integer/parseInt d')) 
+                                  (if (-> @conn :chunks (> 1))
+                                    (do 
+                                      (swap! conn update :temp str d')
+                                      (swap! conn update :chunks dec))
+                                    (let [d'' (str (-> @conn :temp) d')
+                                          d (extract d'')
+                                          k (-> d first to-key)
+                                          c (when k (k @conn))]
+                                      (swap! conn assoc :temp "")
+                                      (when-not (or (nil? k) (nil? c))
+                                        (if (second d)
+                                          (async/put! c (second d))
+                                          (async/close! c))))))))
                 :on-error (fn [t] (thrower t)))]
     (swap! conn assoc :socket socket)                            
     (when auth (send! conn "gauth" {:cred (:token auth)}))
