@@ -104,15 +104,10 @@
       res
       (-> res async/<!! thrower))))
 
-(defn escape 
-  "Surround all strings in query with quotes"
-  [query]
-  (apply merge (for [[k v] query]  {k (if (string? v) (str "\"" v "\"") v)})))
-
 (defn read
   "Retrieves data from Firebase database at a given path"
   [db-name path auth & [options]]
-  (let [res (request :get db-name path nil auth (merge {:query-params (or (escape (:query options)) {})} 
+  (let [res (request :get db-name path nil auth (merge {:query-params (or (utils/escape (:query options)) {})} 
                                                        (dissoc options :query)))]
     (if (:async (merge {} options auth))
       res

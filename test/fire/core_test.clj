@@ -98,7 +98,7 @@
           path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           pool (cp/threadpool 10)
           _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true}) homes))
-          _ (Thread/sleep 6000)
+          _ (Thread/sleep 8000)
           read (async/<!! (fire/read db path auth {:query {:shallow true} :async true}))
           _ (async/<!! (fire/write! db path {:name "random"} auth {:async true}))
           _ (async/<!! (fire/update! db path {:name "random2"} auth {:async true}))

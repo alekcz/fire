@@ -5,36 +5,22 @@
             [clojure.core.async :as async]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [clj-uuid :as uuid]) 
-  (:import [org.eclipse.jetty.websocket.client WebSocketClient]
-           [org.eclipse.jetty.websocket.common WebSocketSession])            
+            [clj-uuid :as uuid])       
   (:refer-clojure :exclude [read])           
   (:gen-class))
 
-;Inferred from https://github.com/firebase/firebase-js-sdk/blob/8bece487710aa6315c7dd98bcb086cd18fc9a943/packages/database/src/core/PersistentConnection.ts#L176
+; Inferred from https://github.com/firebase/firebase-js-sdk/blob/master/packages/database/src/core/PersistentConnection.ts#L176
 
 (def version 5) ;aligned to firebase-js-sdk
-
-(defn prep-ex 
-  [^String message ^Exception e]
-  (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
-
-(defn thrower [res]
-  (when (instance? Throwable res) (throw res))
-  res)
+(def timeout 3000)
 
 (defn extract [data']
-  (let [data (u/decode data')
-        t (-> data :t)]
-    (case t
-      "d" [(-> data :d :r) (-> data :d :b :d)]
-      "c" [nil (-> data :d :d)]
-      [nil data])))
+  (let [data (u/decode data')]
+    (if (-> data :t (= "d"))
+      [(-> data :d :r) (-> data :d :b :d)] ;data
+      [nil (-> data :d :d)]))) ; control
 
 (defn to-key [num]
-  (when num (keyword (str "f" num))))
-
-(defn to-num [num]
   (when num (keyword (str "f" num))))
 
 (defn send! [conn a msg & [read?]]
@@ -58,24 +44,24 @@
         url (try (str (io/as-url db-name')) (catch Exception _ nil))]
     (if (nil? url) (base-url db-name) db-name)))
 
-(defn connect [db-name auth]
+(defn result [chan]
+  (let [res (async/alts!! [(async/timeout timeout) chan])]
+    (if (= (second res) chan)
+      (first res)
+      (throw (ex-info "Timeout" {:error "Timeout trying to reach web server"})))))
+
+
+; Does not work with  localhost
+(defn connect [db-name auth & {:keys [on-close connection]
+                               :or {on-close (fn[]) connection nil}}]
   (let [url (socket-url db-name)
-        conn (atom {:socket nil :count 0 :auth auth :db db-name :chunks 0 :temp ""})
-        ;; buffer (async/chan 16384) ;max transfer from firebase is 256 MB which is ~15625 chucnks
-        client (let [^WebSocketClient ws (ws/client)]
-                  ;; (.setMaxTextMessageBufferSize ws 256000)
-                  ;; (.setMaxBinaryMessageBufferSize ws 256000)
-                  (.setStopAtShutdown ws true)
-                  (.start ws)
-                  ws)
+        conn (or connection (atom {:socket nil :count 0 :auth auth :db db-name :chunks 0 :temp ""}))
         socket (ws/connect (str url "/.ws?v=" version) 
-                :client client
-                :on-close (fn [a b] 
-                            (println a b)
-                            (.stop client))
+                :on-close (fn [_ _] 
+                            (swap! conn assoc :socket nil)
+                            (on-close))
                 :on-receive (fn [d'] 
                               (let [len (count d')]
-                                (-> @conn :chunks println)
                                 (if (= len 1)
                                   (swap! conn assoc :chunks (Integer/parseInt d')) 
                                   (if (-> @conn :chunks (> 1))
@@ -90,24 +76,35 @@
                                       (when-not (or (nil? k) (nil? c))
                                         (if (second d)
                                           (async/put! c (second d))
-                                          (async/close! c))))))))
-                :on-error (fn [t] (thrower t)))]
+                                          (async/close! c)))))))))]
     (swap! conn assoc :socket socket)                            
-    (when auth (send! conn "gauth" {:cred (:token auth)}))
+    (when auth 
+      (let [count (send! conn "gauth" {:cred (:token auth)} true)
+            k (to-key count)
+            data (result (-> @conn k))]
+            (swap! conn dissoc k)
+            (swap! conn assoc :expiry  (:expires data))))
     conn))
 
 (defn refresh [conn]
-  (let [auth (-> @conn :auth)]
-    (when (>= (u/now) (:expiry auth))
-      (let [new-auth (-> auth :env auth/create-token)
-            new-db (-> @conn :db)]
-        (reset! conn (connect new-db new-auth))))))
+  (let [expiry (-> @conn :expiry)]
+    (cond 
+      (-> @conn :socket nil?)   (let [new-auth (-> @conn :auth :env auth/create-token) new-db (-> @conn :db)]
+                                  (connect new-db new-auth :connection conn))
 
-(defn read [conn path]
+      (>= (u/now) expiry)       (let [new-auth (-> @conn :auth :env auth/create-token)
+                                      count (send! conn "gauth" {:cred (:token new-auth)} true)
+                                      k (to-key count)
+                                      data (result (-> @conn k))]
+                                  (swap! conn dissoc k)
+                                  (swap! conn assoc :auth new-auth)
+                                  (swap! conn assoc :expiry (:expires data))))))
+
+(defn read [conn path & [query]]
   (refresh conn)
-  (let [count (send! conn "g" {:p path} true)
+  (let [count (send! conn "g" {:p path :q query} true)
         k (to-key count)
-        data (async/<!! (-> @conn k))]
+        data (result (-> @conn k))]
     (swap! conn dissoc k)
     data))
 
@@ -121,14 +118,17 @@
 
 (defn push! [conn path data]
   (refresh conn)
-  (let [k (str "fire_" (uuid/get-timestamp (uuid/v1)))]
-    (send! conn "m" {:p path :d {(keyword k) data}})
-    {:name k}))
+  (let [n (str "fire_" (uuid/get-timestamp (uuid/v1)))]
+    (send! conn "m" {:p path :d {(keyword n) data}})
+    {:name n}))
 
 (defn delete! [conn path]
   (refresh conn)
   (send! conn "p" {:p path :d {}}))
 
 (defn disconnect [conn]
-  (send! conn "unauth" {}))
+  (let [sock (:socket @conn)]
+    (when (some? sock) 
+      (send! conn "unauth" {})
+      (ws/close sock))))
 
