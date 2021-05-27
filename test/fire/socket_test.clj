@@ -45,8 +45,7 @@
       (is (not= home read0))
       (is (= home read1))
       (is (= updated-home read2))
-      (is (nil? read3))
-      (fire/disconnect db))))
+      (is (nil? read3)))))
 
 (deftest crud-test
   (testing "Create read update and delete data test"
@@ -68,8 +67,7 @@
           read3  (fire/read db path)]
       (is (= home read1))
       (is (= updated-home read2))
-      (is (nil? read3))
-      (fire/disconnect db)))) 
+      (is (nil? read3))))) 
 
 (deftest bulk-test
   (testing "Bulk push read and delete data test"
@@ -85,11 +83,27 @@
           _ (swap! db assoc :socket nil)
           read (fire/read db path)
           _ (fire/delete! db path)
-          read2  (fire/read db path)]
+          read2  (fire/read db path)
+          bulkpath (str path "/bulky")
+          biggy (apply str (repeat 5000000 "s"))
+          _ (time (fire/write! db bulkpath biggy))
+          read3  (fire/read db bulkpath)
+          _ (fire/delete! db bulkpath)]
       (is (= num (count (keys read))))
+      (is (= biggy read3))
       (is (every? some? (vals read)))
-      (is (nil? read2))
-      (fire/disconnect db))))           
+      (is (nil? read2)))))           
+
+(deftest disconnect-test
+  (testing "Exception test"
+    (let [_ (println "Exception test")
+          seed 6
+          auth (fire-auth/create-token :fire)
+          db (fire/connect (:project-id auth) auth)]
+      (is (some? (-> @db :socket)))
+      (fire/disconnect db)
+      (Thread/sleep 3000)
+      (is (nil? (-> @db :socket))))))
 
 (deftest ex-test
   (testing "Exception test"

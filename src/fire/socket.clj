@@ -12,7 +12,7 @@
 ; Inferred from https://github.com/firebase/firebase-js-sdk/blob/master/packages/database/src/core/PersistentConnection.ts#L176
 
 (def version 5) ;aligned to firebase-js-sdk
-(def timeout 3000)
+(def timeout (* 1 60 1000))
 
 (defn extract [data']
   (let [data (u/decode data')]
@@ -22,15 +22,6 @@
 
 (defn to-key [num]
   (when num (keyword (str "f" num))))
-
-(defn send! [conn a msg & [read?]]
-  (let [sock (-> @conn :socket)
-        count (-> @conn :count inc)
-        k (to-key count)]
-      (ws/send-msg sock (u/encode {:t "d" :d {:r count :a a  :b msg}}))
-      (swap! conn assoc :count count)
-      (when read? (swap! conn assoc k (async/chan 1)))
-    count))
 
  (defn base-url 
   "Returns a proper Firebase base url given a database name"
@@ -50,6 +41,22 @@
       (first res)
       (throw (ex-info "Timeout" {:error "Timeout trying to reach web server"})))))
 
+(defn send! [conn a msg & [read?]]
+  (let [sock (-> @conn :socket)
+        message-count (-> @conn :count inc)
+        k (to-key message-count)
+        payload (u/encode {:t "d" :d {:r message-count :a a  :b msg}})
+        submessages (vec (re-seq #".{1,65000}" payload))
+        chunks (count submessages)]
+      (if (= chunks 1)
+        (ws/send-msg sock payload)
+        (do 
+          (ws/send-msg sock (str chunks))
+          (doseq [s submessages]
+            (ws/send-msg sock s))))
+      (swap! conn assoc :count message-count)
+      (when read? (swap! conn assoc k (async/chan 1)))
+    message-count))
 
 ; Does not work with  localhost
 (defn connect [db-name auth & {:keys [on-close connection]
@@ -60,9 +67,10 @@
                 :on-close (fn [_ _] 
                             (swap! conn assoc :socket nil)
                             (on-close))
-                :on-receive (fn [d'] 
-                              (let [len (count d')]
-                                (if (= len 1)
+                :on-receive (fn [d']
+                              (let [len (count d')
+                                    header (when (< len 12) (Integer/parseInt d'))]
+                                (if (some? header)
                                   (swap! conn assoc :chunks (Integer/parseInt d')) 
                                   (if (-> @conn :chunks (> 1))
                                     (do 
@@ -129,6 +137,6 @@
 (defn disconnect [conn]
   (let [sock (:socket @conn)]
     (when (some? sock) 
-      (send! conn "unauth" {})
+      ;(send! conn "unauth" {})
       (ws/close sock))))
 

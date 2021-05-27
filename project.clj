@@ -10,7 +10,7 @@
                   [org.clojure/core.async "1.1.587"]
                   [stylefruits/gniazdo "1.2.0"]
                   [danlentz/clj-uuid "0.1.9"]]
-  :plugins [[lein-cloverage "1.2.0"]]
+  :plugins [[lein-cloverage "1.2.2"]]
   :aot :all
   :main fire.core
   :repl-options {:init-ns fire.core}
