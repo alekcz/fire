@@ -1,2 +1,2 @@
 #!/bin/bash
-lein cloverage --codecov
+lein cloverage --codecov --exclude-call clojure.core/doseq
