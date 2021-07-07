@@ -4,8 +4,7 @@
             [clojure.core.async :as async]
             [clojure.java.io :as io]
             [fire.auth :as fire-auth]
-            [fire.utils :as utils]
-            [clojure.set :as set])            
+            [fire.utils :as utils])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
