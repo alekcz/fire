@@ -5,18 +5,25 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [ [org.clojure/clojure "1.10.2-alpha1"]
                   [http-kit "2.5.0"]
-                  [metosin/jsonista "0.3.3"]
+                  [cheshire "5.10.0"]
                   [environ "1.2.0"]
                   [org.clojure/core.async "1.1.587"]
                   [stylefruits/gniazdo "1.2.0"]
                   [danlentz/clj-uuid "0.1.9"]]
-  :plugins [[lein-cloverage "1.2.2"]]
+  :plugins [[lein-cloverage "1.2.2"]
+            [lein-eftest "0.5.9"]]
   :aot :all
   :main fire.core
   :repl-options {:init-ns fire.core}
+  :cloverage {:runner :eftest
+              :runner-opts {:test-warn-time 500
+                           :fail-fast? false
+                           :multithread? :namespaces}}
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
-                                     [metosin/malli "0.0.1-20200404.091302-14"]]}}
+                                     [criterium "0.4.6"]
+                                     [metosin/malli "0.0.1-20200404.091302-14"]
+                                     [eftest/eftest "0.5.9"]]}}
   :aliases
   {"native"
    ["shell"

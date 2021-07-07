@@ -11,3 +11,7 @@ pom.xml.asc
 .hgignore
 .hg/
 *.log
+.DS_Store
+/.DS_Store
+*/.DS_Store
+**/.DS_Store

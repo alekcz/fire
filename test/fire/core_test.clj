@@ -4,7 +4,8 @@
             [com.climate.claypoole :as cp]
             [fire.auth :as fire-auth]
             [fire.core :as fire]
-            [clojure.core.async :as async]))
+            [clojure.core.async :as async]
+            [criterium.core :as cc]))
 
 (def home
   [:map
@@ -24,6 +25,19 @@
   (for [r (range n)]
     (-> (mg/generate home {:size (+ (mod r 10) 11) :seed r}) 
         (assoc :num (inc r)))))
+
+(defn benchmark []
+  (let [_ (println "Bulk push read and delete data test")
+        seed 77
+        num 10
+        auth (fire-auth/create-token :fire)
+        db (:project-id auth)
+        path (str "/fire-test/bench-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+        nrange (range num)]
+    (cc/with-progress-reporting 
+      (cc/bench 
+        (doseq [r nrange]
+          (fire/push! db path {:test r} auth)) :verbose))))
 
 (deftest prud-test
   (testing "Push read update and delete data test"
