@@ -1,9 +1,9 @@
-(defproject alekcz/fire "0.4.0-SNAPSHOT"
+(defproject alekcz/fire "0.4.0"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [ [org.clojure/clojure "1.10.2-alpha1"]
+  :dependencies [ [org.clojure/clojure "1.10.3" :scope "provided"]
                   [http-kit "2.5.0"]
                   [cheshire "5.10.0"]
                   [environ "1.2.0"]
