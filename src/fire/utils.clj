@@ -1,22 +1,17 @@
 (ns fire.utils
-  (:require [jsonista.core :as j])
+  (:require [cheshire.core :as json])
   (:gen-class))
 
 (def firebase-root "firebaseio.com")
-
-(def mapper
-  (j/object-mapper
-    {:encode-key-fn name
-     :decode-key-fn keyword}))
 
 (defn now []
   (quot (inst-ms (java.util.Date.)) 1000))
 
 (defn encode [m]
-  (j/write-value-as-string m))
+  (json/encode m))
 
-(defn decode [json]
-  (j/read-value json mapper))
+(defn decode [json-string]
+  (json/decode json-string true))
 
 (defn escape 
   "Surround all strings in query with quotes"

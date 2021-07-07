@@ -4,7 +4,8 @@
             [clojure.core.async :as async]
             [clojure.java.io :as io]
             [fire.auth :as fire-auth]
-            [fire.utils :as utils])            
+            [fire.utils :as utils]
+            [clojure.set :as set])            
   (:refer-clojure :exclude [read])
   (:gen-class))
 
@@ -57,8 +58,9 @@
                                               (when auth {:headers {"Authorization" (str "Bearer " token)}})
                                               (when-not (nil? data) {:body (utils/encode data)})
                                               (dissoc options :async)])
-            url (db-url db-name path)]
-        (binding [org.httpkit.client/*default-client* sni-client]
+            url (db-url db-name path)
+            c sni-client]
+        (binding [org.httpkit.client/*default-client* c]
           (client/post url request-options 
             (fn [response] 
               (let [res (-> response :body utils/decode)
