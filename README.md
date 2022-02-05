@@ -15,7 +15,9 @@ For fire you will need to create a Realtime Database on Firebase and retrieve th
 
 ## Usage
 
-`[alekcz/fire "0.4.1"]`
+`[alekcz/fire "0.5.0"]`
+
+### Interacting with Realtime Database
 
 Creating your auth token
 
@@ -76,6 +78,40 @@ See the Firebase [query docs](https://firebase.google.com/docs/database/rest/ret
     
     ; => nil
 ```
+
+### Interacting with Firebase Stsorage
+
+Creating your auth token
+
+```clojure
+(require  '[fire.storage :as storage]
+          '[fire.auth :as auth])
+(def auth (auth/create-token "GOOGLE_APPLICATION_CREDENTIALS"))
+```
+
+Upload data or a file to Firebase Storage
+
+```clojure
+(spit "path/on/firebase.txt" "this is fire")
+(storage/upload! "path/on/firebase.txt" "path/on/disk/storage.txt" "text/plain" auth)
+(storage/upload! "path/on/firebase.txt" non-string-data-in-memory  "text/plain" auth)
+```
+ 
+Download data to memory or a file from Firebase Storage
+ 
+```clojure
+(store/download "path/on/firebase.txt" auth) ;=> "this is fire"
+(store/download-to-file "path/on/firebase.txt" "downloads/storage.txt" auth)
+(slurp "downloads/storage.txt") ;=> "this is fire"
+
+```
+ 
+Add data at the specified location with an automatically generated key:
+
+```clojure
+(store/delete! "path/on/firebase.txt" auth) 
+```
+
 
 ## Thanks 
 Special thanks to: 
