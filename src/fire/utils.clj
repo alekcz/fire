@@ -2,6 +2,8 @@
   (:require [cheshire.core :as json])
   (:gen-class))
 
+(set! *warn-on-reflection* true)
+
 (def firebase-root "firebaseio.com")
 (def storage-upload-root "https://storage.googleapis.com/upload/storage/v1/b")
 (def storage-download-root "https://storage.googleapis.com/storage/v1/b")

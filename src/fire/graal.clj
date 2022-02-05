@@ -6,6 +6,7 @@
             [clojure.java.io :as io])
   (:gen-class))
 
+(set! *warn-on-reflection* true)
 
 (defn core-main[]
   (let [auth (auth/create-token :fire)
@@ -28,6 +29,7 @@
     (let [res (socket/read db root)]
       (socket/delete! db root)
       (println res)
+      (socket/disconnect db) 
       res)))      
 
 (defn storage-main []

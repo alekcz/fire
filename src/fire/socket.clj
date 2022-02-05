@@ -9,6 +9,8 @@
   (:refer-clojure :exclude [read])           
   (:gen-class))
 
+(set! *warn-on-reflection* true)  
+
 ; Inferred from https://github.com/firebase/firebase-js-sdk/blob/master/packages/database/src/core/PersistentConnection.ts#L176
 
 (def version 5) ;aligned to firebase-js-sdk

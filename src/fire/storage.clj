@@ -7,6 +7,8 @@
   (:import [java.net URLEncoder]) 
   (:gen-class))
 
+(set! *warn-on-reflection* true)
+
 (def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 
 
@@ -41,7 +43,7 @@
           (if error error res)))))
 
 (defn clean [url]
- (URLEncoder/encode url "UTF-8"))
+ (URLEncoder/encode (str url "") "UTF-8"))
 
 (defn to-file [file-path data]
   (when data

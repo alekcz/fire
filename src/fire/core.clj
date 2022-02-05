@@ -8,7 +8,7 @@
   (:refer-clojure :exclude [read])
   (:gen-class))
 
-(set! *warn-on-reflection* 1)
+(set! *warn-on-reflection* true)
 
 (def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 (def http-type {:get    "GET"

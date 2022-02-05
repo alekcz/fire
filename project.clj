@@ -9,10 +9,13 @@
                   [cheshire "5.10.0"]
                   [environ "1.2.0"]
                   [stylefruits/gniazdo "1.2.0"]
-                  [danlentz/clj-uuid "0.1.9"]]
+                  [danlentz/clj-uuid "0.1.9"]
+                  ;; [com.github.clj-easy/graal-build-time "0.1.4"]
+                  ]
   :plugins [[lein-cloverage "1.2.2"]
             [lein-eftest "0.5.9"]]
   :aot :all
+  :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :main fire.graal
   :repl-options {:init-ns fire.core}
   :cloverage {:runner :eftest
