@@ -25,15 +25,15 @@ jobs:
       uses: actions/cache@v1
       id: cache-graalvm-11
       with:
-        path: ~/graalvm-ce-java11-22.0.2
-        key: ${{ runner.os }}-graalvm-22.0.2
+        path: ~/graalvm-ce-java11-22.0.0.2
+        key: ${{ runner.os }}-graalvm-22.0.0.2
         restore-keys: |
-              ${{ runner.os }}-graalvm-22.0.2
+              ${{ runner.os }}-graalvm-22.0.0.2
 
     - name: Download GraalVM Java-11
       run: |
         cd ~
-        if ! [ -d graalvm-ce-java11-22.0.2 ]; then
+        if ! [ -d graalvm-ce-java11-22.0.0.2 ]; then
           curl -O -sL https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
           tar xzf graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
         fi 
@@ -61,8 +61,8 @@ jobs:
         FIRE: ${{ secrets.FIRE }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
       run: |
-        export GRAALVM_HOME=~/graalvm-ce-java11-22.0.2
-        export JAVA_HOME=~/graalvm-ce-java11-22.0.2/Contents/Home
+        export GRAALVM_HOME=~/graalvm-ce-java11-22.0.0.2
+        export JAVA_HOME=~/graalvm-ce-java11-22.0.0.2/Contents/Home
         export PATH=$JAVA_HOME/bin:$PATH
         export PATH=$GRAALVM_HOME/bin:$PATH
         java -version

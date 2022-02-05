@@ -15,6 +15,8 @@
             [lein-eftest "0.5.9"]]
   :aot :all
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
+  :javac-options ["--release" "8" "-g"]
+  :global-vars {*warn-on-reflection* true}
   :main fire.graal
   :repl-options {:init-ns fire.core}
   :cloverage {:runner :eftest
