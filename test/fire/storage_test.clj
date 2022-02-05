@@ -47,7 +47,6 @@
       (is (= contents dl1 thawed))
       (is (= dl2 (slurp deleted)))
       (is (= java.net.URISyntaxException (type (store/download "doesn't exist" auth {:project-id "doesnt exist"}))))
-      (is (thrown? java.lang.Exception (store/download nil auth)))
       (is (str/includes? dl2 "o such object")))))
 
 (deftest binary-storage-test

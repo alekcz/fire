@@ -56,4 +56,5 @@
 (defn -main [ & _]
   (core-main)
   (socket-main)
-  (storage-main))
+  (storage-main)
+  "graal")

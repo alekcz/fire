@@ -13,3 +13,7 @@
 (deftest graal-test-storage
   (testing "Run storage main function"
     (is (= "graal-storage" (graal/storage-main)))))        
+
+(deftest graal-test-storage
+  (testing "Run storage main function"
+    (is (= "graal" (graal/-main)))))            
