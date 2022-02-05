@@ -6,7 +6,7 @@
   :dependencies [ [org.clojure/clojure "1.10.3" :scope "provided"]
                   [org.clojure/core.async "1.3.618"]
                   [http-kit "2.5.3"]
-                  [cheshire "5.10.0"]
+                  [cheshire "5.10.2"]
                   [environ "1.2.0"]
                   [stylefruits/gniazdo "1.2.0"]
                   [danlentz/clj-uuid "0.1.9"]
@@ -27,7 +27,7 @@
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
                                      [com.taoensso/nippy "3.1.1"]
-                                     [metosin/malli "0.0.1-20200404.091302-14"]
+                                     [metosin/malli "0.8.0"]
                                      [eftest/eftest "0.5.9"]]}}
   :aliases
   {"native"
