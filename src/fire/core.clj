@@ -20,13 +20,6 @@
   (when (instance? Throwable res) (throw res))
   res)
 
-(defn recursive-merge
-  "Recursively merge hash maps."
-  [a b]
-  (if (and (map? a) (map? b))
-    (merge-with recursive-merge a b)
-    (if (map? a) a b)))
-
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
   [db-name]
@@ -50,13 +43,13 @@
                       (:token auth) 
                       (-> auth :env fire-auth/create-token :token)))
             request-options (reduce 
-                              recursive-merge [{:query-params {:pretty-print true}}
-                                              {:headers {"X-HTTP-Method-Override" (method http-type)
-                                                         "Connection" "keep-alive"}}
-                                              {:keepalive 600000}
-                                              (when auth {:headers {"Authorization" (str "Bearer " token)}})
-                                              (when-not (nil? data) {:body (utils/encode data)})
-                                              (dissoc options :async)])
+                              utils/recursive-merge [{:query-params {:pretty-print true}}
+                                                     {:headers {"X-HTTP-Method-Override" (method http-type)
+                                                                "Connection" "keep-alive"}}
+                                                     {:keepalive 600000}
+                                                     (when auth {:headers {"Authorization" (str "Bearer " token)}})
+                                                     (when-not (nil? data) {:body (utils/encode data)})
+                                                     (dissoc options :async)])
             url (db-url db-name path)
             c sni-client]
         (binding [org.httpkit.client/*default-client* c]

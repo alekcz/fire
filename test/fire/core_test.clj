@@ -4,6 +4,7 @@
             [com.climate.claypoole :as cp]
             [fire.auth :as fire-auth]
             [fire.core :as fire]
+            [fire.utils :as utils]
             [clojure.core.async :as async]
             [criterium.core :as cc]))
 
@@ -181,9 +182,9 @@
           m1 {:one 2}
           m2 {:three 4}
           both {:one 2 :three 4}]
-      (is (= both (fire/recursive-merge m1 m2)))
-      (is (= m1 (fire/recursive-merge m1 2)))
-      (is (= m2 (fire/recursive-merge 1 m2))))))
+      (is (= both (utils/recursive-merge m1 m2)))
+      (is (= m1 (utils/recursive-merge m1 2)))
+      (is (= m2 (utils/recursive-merge 1 m2))))))
 
 (deftest ex-test
   (testing "Exception test"

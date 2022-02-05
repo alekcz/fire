@@ -42,7 +42,9 @@
     (if-not (:private_key auth)
       nil
       (binding [org.httpkit.client/*default-client* sni-client/default-client]
-        (let [scopes "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email"
+        (let [scopes "https://www.googleapis.com/auth/firebase.database 
+                      https://www.googleapis.com/auth/userinfo.email 
+                      https://www.googleapis.com/auth/devstorage.full_control"
               aud "https://oauth2.googleapis.com/token"
               t (utils/now)
               private-key (-> auth :private_key str->private-key)

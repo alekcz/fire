@@ -22,6 +22,7 @@
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
+                                     [com.taoensso/nippy "3.1.1"]
                                      [metosin/malli "0.0.1-20200404.091302-14"]
                                      [eftest/eftest "0.5.9"]]}}
   :aliases
