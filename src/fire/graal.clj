@@ -3,7 +3,8 @@
             [fire.auth :as auth]
             [fire.socket :as socket]
             [fire.storage :as storage]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:gen-class))
 
 
 (defn core-main[]
