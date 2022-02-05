@@ -51,7 +51,7 @@
       (io/delete-file deleted)
       dl1))
 
-(defn -main [_]
+(defn -main [ & _]
   (core-main)
   (socket-main)
   (storage-main))
