@@ -1,3 +1,3 @@
 #!/bin/bash
 chmod +x ./test.sh        
-firebase emulators:exec ./test.sh --import=./test/resources
+firebase emulators:exec --only database ./test.sh 

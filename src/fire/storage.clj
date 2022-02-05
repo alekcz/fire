@@ -74,3 +74,24 @@
   [target & [auth options]]
   (let [res (request :delete utils/storage-download-root  (str "/o/" (clean target)) nil nil auth options)]
     (utils/decode res)))
+
+(defn -main []
+  (let [auth (auth/create-token :fire)
+        file (str "temp.graal.bin")
+        test (str "temp.graal.test")
+        deleted (str "temp.graal.deleted")
+        contents "graal-storage"
+        _ (spit file contents)
+        _ (upload! file file "text/plain" auth)
+        dl1 (download file auth {:async true})
+        _ (download-to-file file test auth)
+        thawed (slurp test)
+        _ (delete! file auth)
+        dl2 (download file auth)
+        _ (download-to-file file deleted auth)]
+      (println (= contents dl1 thawed))
+      (println (= dl2 (slurp deleted)))
+      (io/delete-file file)
+      (io/delete-file test)
+      (io/delete-file deleted)
+      dl1))
