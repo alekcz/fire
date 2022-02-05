@@ -1,17 +1,15 @@
 (ns fire.graal-test
   (:require [clojure.test :refer [deftest is testing]]
-            [fire.core :as fire]
-            [fire.socket :as socket]
-            [fire.storage :as storage]))
+            [fire.graal :as graal]))
 
 (deftest graal-test
   (testing "Run core main function"
-    (is (= {:name "graal"} (fire/-main)))))
+    (is (= {:name "graal"} (graal/core-main)))))
 
 (deftest graal-test-socket
   (testing "Run socket main function"
-    (is (= {:name "graal-socket"} (socket/-main)))))    
+    (is (= {:name "graal-socket"} (graal/socket-main)))))    
 
 (deftest graal-test-storage
   (testing "Run storage main function"
-    (is (= "graal-storage" (storage/-main)))))        
+    (is (= "graal-storage" (graal/storage-main)))))        

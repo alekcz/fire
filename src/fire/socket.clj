@@ -140,14 +140,3 @@
     (when (some? sock) 
       ;(send! conn "unauth" {})
       (ws/close sock))))
-
-(defn -main []
-  (let [auth (auth/create-token :fire)
-        db (connect (:project-id auth) auth)
-        root "/fire-graalvm-test-socket"]
-    (push! db root {:originalname "graalvm"})
-    (write! db root {:name "graal-socket"})
-    (let [res (read db root)]
-      (delete! db root)
-      (println res)
-      res)))
