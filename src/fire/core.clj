@@ -8,7 +8,7 @@
   (:refer-clojure :exclude [read])
   (:gen-class))
 
-(set! *warn-on-reflection* 1)
+(set! *warn-on-reflection* true)
 
 (def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 (def http-type {:get    "GET"
@@ -19,13 +19,6 @@
 (defn thrower [res]
   (when (instance? Throwable res) (throw res))
   res)
-
-(defn recursive-merge
-  "Recursively merge hash maps."
-  [a b]
-  (if (and (map? a) (map? b))
-    (merge-with recursive-merge a b)
-    (if (map? a) a b)))
 
 (defn db-base-url 
   "Returns a proper Firebase base url given a database name"
@@ -50,13 +43,13 @@
                       (:token auth) 
                       (-> auth :env fire-auth/create-token :token)))
             request-options (reduce 
-                              recursive-merge [{:query-params {:pretty-print true}}
-                                              {:headers {"X-HTTP-Method-Override" (method http-type)
-                                                         "Connection" "keep-alive"}}
-                                              {:keepalive 600000}
-                                              (when auth {:headers {"Authorization" (str "Bearer " token)}})
-                                              (when-not (nil? data) {:body (utils/encode data)})
-                                              (dissoc options :async)])
+                              utils/recursive-merge [{:query-params {:pretty-print true}}
+                                                     {:headers {"X-HTTP-Method-Override" (method http-type)
+                                                                "Connection" "keep-alive"}}
+                                                     {:keepalive 600000}
+                                                     (when auth {:headers {"Authorization" (str "Bearer " token)}})
+                                                     (when-not (nil? data) {:body (utils/encode data)})
+                                                     (dissoc options :async)])
             url (db-url db-name path)
             c sni-client]
         (binding [org.httpkit.client/*default-client* c]
@@ -113,14 +106,3 @@
     (if (:async (merge {} options auth))
       res
       (-> res async/<!! thrower))))
-
-(defn -main []
-  (let [auth (fire-auth/create-token :fire)
-        db (:project-id auth)
-        root "/fire-graalvm-test"]
-    (push! db root {:originalname "graalvm"} auth)
-    (write! db root {:name "graal"} auth)
-    (let [res (read db root auth)]
-      (delete! db root auth)
-      (println res)
-      res)))

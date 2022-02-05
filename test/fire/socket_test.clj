@@ -79,13 +79,13 @@
           db (fire/connect (:project-id auth) auth :on-close (fn [] (println "Closed bruv")))
           path (str "/fire-test/s-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
           _ (time (doseq [h homes] (fire/push! db path h)))
-          _ (Thread/sleep 5000)
+          _ (Thread/sleep 3000)
           _ (swap! db assoc :socket nil)
           read (fire/read db path)
           _ (fire/delete! db path)
           read2  (fire/read db path)
           bulkpath (str path "/bulky")
-          biggy (apply str (repeat 5000000 "s"))
+          biggy (apply str (repeat 500000 "s"))
           _ (time (fire/write! db bulkpath biggy))
           read3  (fire/read db bulkpath)
           _ (fire/delete! db bulkpath)]
@@ -102,7 +102,7 @@
           db (fire/connect (:project-id auth) auth)]
       (is (some? (-> @db :socket)))
       (fire/disconnect db)
-      (Thread/sleep 3000)
+      (Thread/sleep 1000)
       (is (nil? (-> @db :socket))))))
 
 (deftest ex-test

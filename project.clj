@@ -1,4 +1,4 @@
-(defproject alekcz/fire "0.4.1"
+(defproject alekcz/fire "0.5.0-SNAPSHOT"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
@@ -9,11 +9,15 @@
                   [cheshire "5.10.0"]
                   [environ "1.2.0"]
                   [stylefruits/gniazdo "1.2.0"]
-                  [danlentz/clj-uuid "0.1.9"]]
+                  [danlentz/clj-uuid "0.1.9"]
+                  ]
   :plugins [[lein-cloverage "1.2.2"]
             [lein-eftest "0.5.9"]]
   :aot :all
-  :main fire.core
+  :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
+  :javac-options ["--release" "8" "-g"]
+  :global-vars {*warn-on-reflection* true}
+  :main fire.graal
   :repl-options {:init-ns fire.core}
   :cloverage {:runner :eftest
               :runner-opts {:test-warn-time 500
@@ -22,6 +26,7 @@
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
+                                     [com.taoensso/nippy "3.1.1"]
                                      [metosin/malli "0.0.1-20200404.091302-14"]
                                      [eftest/eftest "0.5.9"]]}}
   :aliases
