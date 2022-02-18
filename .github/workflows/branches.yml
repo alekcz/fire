@@ -12,6 +12,7 @@ jobs:
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
+        VISION_API: ${{ secrets.VISION_API }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         NPM_CONFIG_PREFIX: ~/.npm-global
       run: |

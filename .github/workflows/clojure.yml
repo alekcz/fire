@@ -89,6 +89,7 @@ jobs:
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         NPM_CONFIG_PREFIX: ~/.npm-global
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        VISION_API: ${{ secrets.VISION_API }}
       run: |
         mkdir -p ~/.npm-global
         npm config set prefix '~/.npm-global'

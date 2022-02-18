@@ -1,4 +1,4 @@
-(defproject alekcz/fire "0.5.0"
+(defproject alekcz/fire "0.5.1"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
@@ -24,6 +24,7 @@
                            :fail-fast? false
                            :multithread? :namespaces}}
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
+                    :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
                                      [com.taoensso/nippy "3.1.1"]

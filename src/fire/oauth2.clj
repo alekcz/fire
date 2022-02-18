@@ -12,9 +12,6 @@
 
 (set! *warn-on-reflection* 1)
 
-(defn- clean-env-var [env-var]
-  (-> env-var (name) (str) (str/lower-case) (str/replace "_" "-") (str/replace "." "-") (keyword)))
-
 (defn str->private-key [keystr']
   (let [^Base64$Decoder b64decoder (. Base64 getDecoder)
         ^KeyFactory kf (KeyFactory/getInstance "RSA")
@@ -38,7 +35,7 @@
         (str jwtbody "." (rencode (.sign sig)))))
 
 (defn get-token [env-var]
-  (let [auth (-> env-var clean-env-var env utils/decode)]
+  (let [auth (-> env-var utils/clean-env-var env utils/decode)]
     (if-not (:private_key auth)
       nil
       (binding [org.httpkit.client/*default-client* sni-client/default-client]
