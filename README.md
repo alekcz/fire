@@ -79,7 +79,7 @@ See the Firebase [query docs](https://firebase.google.com/docs/database/rest/ret
     ; => nil
 ```
 
-### Interacting with Firebase Stsorage
+### Interacting with Firebase Storage
 
 Creating your auth token
 
