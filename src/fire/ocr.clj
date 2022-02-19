@@ -36,6 +36,23 @@
           (:body response :body)))))
 
 (defn ocr  
+  "Run OCR on Base64 string using Google Cloud Vision. API key required in env-var"
+  [b64 env-var]
+  (let [api-key (env (-> env-var utils/clean-env-var keyword))
+        res (request {:requests [{:image {:content b64}
+                                  :features [{:type "TEXT_DETECTION"}]}]} api-key)]
+    (utils/decode res)))
+
+(defn ocr-bytes  
+  "Run OCR on bytes using Google Cloud Vision. API key required in env-var"
+  [bytes env-var]
+  (let [b64 (.encodeToString b64encoder ^"[B" bytes)
+        api-key (env (-> env-var utils/clean-env-var keyword))
+        res (request {:requests [{:image {:content b64}
+                                  :features [{:type "TEXT_DETECTION"}]}]} api-key)]
+    (utils/decode res)))
+
+(defn ocr-file  
   "Run OCR on file using Google Cloud Vision. API key required in env-var"
   [source env-var]
   (with-open [filestream (io/input-stream (io/as-file source))]

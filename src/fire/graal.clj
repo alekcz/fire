@@ -55,7 +55,7 @@
       dl1))
 
 (defn ocr-main []
-  (let [res (-> (ocr/ocr "test/resources/graalvm.png" :vision-api) :responses first :fullTextAnnotation :text)
+  (let [res (-> (ocr/ocr-file "test/resources/graalvm.png" :vision-api) :responses first :fullTextAnnotation :text)
         answer "GraalVM\n"]
       (println (= res answer))
       (println answer)
