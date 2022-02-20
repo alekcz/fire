@@ -1,6 +1,6 @@
 # fire
 
-A lightweight clojure client for Firebase based using the REST API. Basically [Charmander](https://github.com/alekcz/charmander) 2.0  
+A lightweight clojure client for Firebase based on the REST API. Basically [Charmander](https://github.com/alekcz/charmander) 2.0  
 
 # Status
 
