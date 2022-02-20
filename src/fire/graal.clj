@@ -3,7 +3,7 @@
             [fire.auth :as auth]
             [fire.socket :as socket]
             [fire.storage :as storage]
-            [fire.ocr :as ocr]
+            [fire.vision :as vision]
             [clojure.java.io :as io])
   (:gen-class))
 
@@ -54,8 +54,8 @@
       (io/delete-file deleted)
       dl1))
 
-(defn ocr-main []
-  (let [res (-> (ocr/ocr-file "test/resources/graalvm.png" :vision-api) :responses first :fullTextAnnotation :text)
+(defn vision-main []
+  (let [res (-> (vision/detect-file "test/resources/graalvm.png" :ocr :vision-api) :responses first :fullTextAnnotation :text)
         answer "GraalVM\n"]
       (println (= res answer))
       (println answer)
@@ -65,5 +65,5 @@
   (core-main)
   (socket-main)
   (storage-main)
-  (ocr-main)
+  (vision-main)
   "graal")

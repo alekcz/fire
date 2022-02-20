@@ -14,9 +14,9 @@
   (testing "Run storage main function"
     (is (= "graal-storage" (graal/storage-main)))))        
 
-(deftest graal-test-ocr
+(deftest graal-test-vision
   (testing "Run ocr main function"
-    (is (= "GraalVM\n" (graal/ocr-main)))))                
+    (is (= "GraalVM\n" (graal/vision-main)))))                
 
 (deftest graal-test-overall
   (testing "Run graal main function"
