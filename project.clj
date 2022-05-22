@@ -3,16 +3,17 @@
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [ [org.clojure/clojure "1.10.3" :scope "provided"]
-                  [org.clojure/core.async "1.3.618"]
+  :dependencies [ [org.clojure/clojure "1.11.1"]
+                  [org.clojure/core.async "1.5.648"]
                   [http-kit "2.5.3"]
                   [cheshire "5.10.2"]
                   [environ "1.2.0"]
-                  [stylefruits/gniazdo "1.2.0"]
+                  [stylefruits/gniazdo "1.2.1"]
                   [danlentz/clj-uuid "0.1.9"]
                   ]
   :plugins [[lein-cloverage "1.2.2"]
-            [lein-eftest "0.5.9"]]
+            [lein-eftest "0.5.9"]
+            ]
   :aot :all
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :javac-options ["--release" "8" "-g"]

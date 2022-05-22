@@ -1,7 +1,8 @@
 (ns fire.vision-test
   (:require [clojure.test :refer [deftest is testing]]
             [fire.vision :as vision]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.string :as str])
   (:import  [java.util Base64 Base64$Decoder Base64$Encoder]))
 
 (def ^Base64$Encoder b64encoder (. Base64 getEncoder))
@@ -12,22 +13,22 @@
     (with-open [filestream (io/input-stream (io/as-file "test/resources/test.png"))]
       (let [b64 (.encodeToString b64encoder ^"[B" (vision/stream->bytes filestream))
             res (vision/detect b64 :ocr :vision-api)
-            answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0\n"]
-        (is (= answer (-> res :responses first :fullTextAnnotation :text)))))))
+            answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0"]
+        (is (= answer (-> res :responses first :fullTextAnnotation :text str/trim)))))))
 
 (deftest vision-bytes-test
   (testing "Tests if OCR is applied correctly"
     (with-open [filestream (io/input-stream (io/as-file "test/resources/test.png"))]
       (let [bytes (vision/stream->bytes filestream)
             res (vision/detect-bytes bytes :ocr :vision-api)
-            answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0\n"]
-        (is (= answer (-> res :responses first :fullTextAnnotation :text)))))))
+            answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0"]
+        (is (= answer (-> res :responses first :fullTextAnnotation :text str/trim)))))))
 
 (deftest vision-file-test
   (testing "Tests if OCR is applied correctly"
     (let [res (vision/detect-file "test/resources/test.png" :ocr :vision-api)
-          answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0\n"]
-      (is (= answer (-> res :responses first :fullTextAnnotation :text))))))
+          answer "About\nA lightweight clojure client for Firebase\nbased using the REST API. Basically\nCharmander 2.0"]
+      (is (= answer (-> res :responses first :fullTextAnnotation :text str/trim))))))
 
 (deftest vision-various-test
   (testing "Tests the rest of vision API"
