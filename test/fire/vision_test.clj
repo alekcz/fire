@@ -66,5 +66,5 @@
 (deftest invalid-request-test
   (testing "Tests if a token is returned"
     (let [res (vision/request 10 10 {:url "https://1.firebaseio.com"})
-          answer "Firebase error. Please ensure that you spelled the name of your Firebase correctly"]
-      (is (= answer res)))))      
+          answer "Firebase error. Please ensure"]
+      (is (str/includes? res answer)))))      
