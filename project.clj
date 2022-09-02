@@ -14,7 +14,6 @@
   :plugins [[lein-cloverage "1.2.2"]
             [lein-eftest "0.5.9"]
             ]
-  :aot :all
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :javac-options ["--release" "8" "-g"]
   :global-vars {*warn-on-reflection* true}
