@@ -17,3 +17,5 @@ pom.xml.asc
 **/.DS_Store
 /temp
 /temp.*
+/.clj-kondo
+/.lsp/

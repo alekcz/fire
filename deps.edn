@@ -1,0 +1,8 @@
+{:deps {org.clojure/clojure {:mvn/version "1.11.1"}
+        org.clojure/core.async {:mvn/version "1.5.648"}
+        http-kit {:mvn/version "2.6.0"}
+        cheshire {:mvn/version "5.11.0"}
+        environ {:mvn/version "1.2.0"}
+        stylefruits/gniazdo {:mvn/version "1.2.1"}
+        danlentz/clj-uuid {:mvn/version "0.1.9"}}
+ :paths ["src"]}
