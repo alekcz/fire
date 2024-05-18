@@ -25,6 +25,7 @@ jobs:
         VISION_API: ${{ secrets.VISION_API }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         NPM_CONFIG_PREFIX: ~/.npm-global
+        FIREBASE_DATABASE_EMULATOR_HOST: 127.0.0.1:9000
       run: |
         mkdir -p ~/.npm-global
         npm config set prefix '~/.npm-global'

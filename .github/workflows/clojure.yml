@@ -70,6 +70,7 @@ jobs:
         NPM_CONFIG_PREFIX: ~/.npm-global
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         VISION_API: ${{ secrets.VISION_API }}
+        FIREBASE_DATABASE_EMULATOR_HOST: 127.0.0.1:9000
       run: |
         mkdir -p ~/.npm-global
         npm config set prefix '~/.npm-global'
