@@ -21,8 +21,8 @@
   :repl-options {:init-ns fire.core}
   :cloverage {:runner :eftest
               :runner-opts {:test-warn-time 500
-                           :fail-fast? false
-                           :multithread? :namespaces}}
+                            :fail-fast? false
+                            :multithread? :namespaces}}
   :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]
