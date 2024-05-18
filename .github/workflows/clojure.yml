@@ -10,10 +10,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Cache deps
-      uses: actions/cache@v1
+      uses: actions/cache@v4
       id: cache-deps
       with:
         path: ~/.m2/repository
@@ -22,7 +22,7 @@ jobs:
               ${{ runner.os }}-maven-
 
     - name: Cache GraalVM Java-11
-      uses: actions/cache@v1
+      uses: actions/cache@v4
       id: cache-graalvm-11
       with:
         path: ~/graalvm-ce-java11-22.0.0.2
@@ -39,7 +39,7 @@ jobs:
         fi 
 
     - name: Cache GraalVM Java-8
-      uses: actions/cache@v1
+      uses: actions/cache@v4
       id: cache-graalvm-8
       with:
         path: ~/graalvm-ce-java8-20.3.2
@@ -54,6 +54,14 @@ jobs:
           curl -O -sL https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
           tar xzf graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
         fi     
+
+    - name: Cache emulator
+      uses: actions/cache@v4
+      id: cache-deps-fb
+      with:
+        path: ~/.cache/firebase/emulators
+        key: ${{ runner.os }}-fb-${{ hashFiles('firebase.json') }}
+        restore-keys: |
 
     - name: Run tests
       env: 

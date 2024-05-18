@@ -8,7 +8,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+
+    - name: Cache emulator
+      uses: actions/cache@v4
+      id: cache-deps-fb
+      with:
+        path: ~/.cache/firebase/emulators
+        key: ${{ runner.os }}-fb-${{ hashFiles('firebase.json') }}
+        restore-keys: |
+              ${{ runner.os }}-fb-
+
     - name: Run tests
       env: 
         FIRE: ${{ secrets.FIRE }}
