@@ -24,7 +24,8 @@
                   (if (< (utils/now) (:expiry auth))
                     (:token auth) 
                     (-> auth :env auth/create-token :token)))
-          bucket (str (or (:project-id options) (:project-id auth)) ".appspot.com")
+          bucket (or (:bucket options)
+                     (str (or (:project-id options) (:project-id auth)) ".firebasestorage.app"))
           url (str domain "/" bucket url')
           request-options (reduce utils/recursive-merge 
                               [{:method method}
