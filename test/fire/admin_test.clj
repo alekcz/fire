@@ -556,6 +556,39 @@
   (testing "factors for somebody who doesn't exist is an error"
     (is (:error (admin/list-user-factors (str (uuid/v1)) @auth)))))
 
+(deftest second-factor-enrollment-test
+  (testing "enrolling a phone second factor server-side, then taking it off again"
+    ;; TOTP enrolment is a client flow — the user proves possession of a secret,
+    ;; and fire neither can nor should do that. Phone factors are different:
+    ;; they can be enrolled from the server, which is the only way to exercise
+    ;; the support-recovery path without a human holding a handset. Needs
+    ;; identity platform with SMS multi-factor switched on, so it skips where
+    ;; that isn't available rather than failing the build.
+    (let [prep (fresh-user)
+          uid (:uid prep)
+          phone (unique-phone)]
+      (try
+        ;; firebase refuses to enrol a second factor on an unverified email
+        (admin/set-user-email-verified uid true @auth)
+        (let [enrolled (admin/update-user uid
+                                          {:mfa-enrollments [{:phoneInfo phone
+                                                              :displayName "test factor"}]}
+                                          @auth)]
+          (if (:error enrolled)
+            (println (str "\n  skipping second factor enrolment: " (:error-data enrolled) "\n"))
+            (let [factors (admin/list-user-factors uid @auth)
+                  factor (first factors)]
+              (is (= 1 (count factors)))
+              (is (= :phone (:type factor)))
+              (is (= phone (:phone-number factor)))
+              (is (string? (:id factor)))
+              ;; and now the bit that matters: taking it off a locked-out user
+              (let [after (admin/unenroll-user-factor uid (:id factor) @auth)]
+                (is (not (:error after)))
+                (is (= [] (:mfa-info after)))
+                (is (= [] (admin/list-user-factors uid @auth)))))))
+        (finally (admin/delete-user uid @auth))))))
+
 (deftest email-action-link-test
   (testing "generating verification, reset and sign-in links"
     (let [email (unique-email)
