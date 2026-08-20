@@ -101,6 +101,16 @@ jobs:
         npm install -g firebase-tools@8.5.0
         bash ./ci.sh
 
+    # keep the line-by-line report, so a coverage regression can be read
+    # rather than guessed at
+    - name: Archive coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: target/coverage
+        retention-days: 7
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
