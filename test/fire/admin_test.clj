@@ -291,6 +291,13 @@
 
 (defn- unique-email [] (str (uuid/v1) "@domain.com"))
 
+(defn- unique-phone
+  "A fresh E.164 number per call. A phone number belongs to exactly one user in
+   a project at a time, so a hardcoded one collides between tests — and between
+   concurrent CI runs sharing the project."
+  []
+  (str "+2771" (format "%07d" (rand-int 10000000))))
+
 (defn- fresh-user [] (admin/create-user (unique-email) "superDuperSecure" @auth))
 
 (deftest create-user-test
@@ -334,7 +341,7 @@
 (deftest get-user-test
   (testing "the three lookups all resolve to the same record"
     (let [prep (fresh-user)
-          phone "+27123456789"
+          phone (unique-phone)
           response (admin/set-user-phone-number (:uid prep) phone @auth)]
       (try
         (is (= response (admin/get-user (:uid response) @auth)))
@@ -409,10 +416,11 @@
 (deftest set-user-phone-number-test
   (testing "setting a phone number, and unlinking it again"
     (let [prep (fresh-user)
-          response (admin/set-user-phone-number (:uid prep) "+27123456789" @auth)]
+          phone (unique-phone)
+          response (admin/set-user-phone-number (:uid prep) phone @auth)]
       (try
         (is (= (:uid prep) (:uid response)))
-        (is (= "+27123456789" (:phone-number response)))
+        (is (= phone (:phone-number response)))
         (is (not= (:phone-number prep) (:phone-number response)))
         (is (nil? (:phone-number (admin/set-user-phone-number (:uid prep) nil @auth))))
         (finally (admin/delete-user (:uid prep) @auth))))))
@@ -598,10 +606,11 @@
 (deftest unlink-provider-test
   (testing "unlinking a provider drops that identity but keeps the account"
     (let [prep (fresh-user)
-          uid (:uid prep)]
+          uid (:uid prep)
+          phone (unique-phone)]
       (try
-        (let [with-phone (admin/set-user-phone-number uid "+27123456789" @auth)]
-          (is (= "+27123456789" (:phone-number with-phone)))
+        (let [with-phone (admin/set-user-phone-number uid phone @auth)]
+          (is (= phone (:phone-number with-phone)))
           (is (contains? (set (map :provider-id (:provider-data with-phone))) "phone")))
         (let [unlinked (admin/unlink-provider uid "phone" @auth)]
           (is (= uid (:uid unlinked)))

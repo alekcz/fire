@@ -42,6 +42,14 @@ jobs:
   build:
     needs: offline
     runs-on: ubuntu-latest
+    # the live tests all share one firebase project, so only one of these may
+    # run at a time across the whole repo. a PR fires this workflow and the
+    # master one on the same commit, and two runs writing the same database
+    # paths and claiming the same phone numbers corrupt each other's results.
+    concurrency:
+      group: fire-live-tests
+      cancel-in-progress: false
+
     steps:
     - uses: actions/checkout@v4
 
