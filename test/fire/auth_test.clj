@@ -318,3 +318,21 @@ qwEFwqRUFo+nrwDhrCmruQ==
 (deftest fetch-certs-failure-test
   (testing "an unreachable cert endpoint throws rather than caching nothing"
     (is (thrown? Exception (#'fire-auth/fetch-certs "https://www.googleapis.com/robot/v1/metadata/x509/does-not-exist")))))
+
+(deftest ^:offline stale-certs-survive-a-failed-refresh-test
+  (let [cache @#'fire-auth/cert-cache
+        prior @cache
+        ;; a port nothing listens on: fails immediately, no network required
+        url "https://localhost:1/no-such-certs"]
+    (try
+      (testing "an unreachable endpoint falls back to the cached certs"
+        ;; certs present but well past their TTL, so a refresh is attempted
+        (reset! cache {url {:certs {:test-kid "cached-pem"} :fetched-at 0}})
+        (is (= {:test-kid "cached-pem"} (#'fire-auth/current-certs url))))
+
+      (testing "but with nothing cached to fall back to, it surfaces the failure"
+        ;; verification failing closed beats verification against nothing
+        (reset! cache {})
+        (is (thrown? Exception (#'fire-auth/current-certs url))))
+
+      (finally (reset! cache prior)))))

@@ -194,6 +194,13 @@
     (is (str/starts-with? (:error-data (admin/create-user "a@b.com" "secret1" nil {:custom-claims {:iss "x"}}))
                           "RESERVED_CLAIM")))
 
+  (testing "an exception on the way out is caught and reported, not thrown"
+    ;; a non-numeric :expiry blows up in the token freshness check, before any
+    ;; request is built — the cheapest way to reach request's catch
+    (let [res (admin/get-user "uid" {:expiry "not-a-number" :token "t" :project-id "p"})]
+      (is (:error res))
+      (is (string? (:error-data res)))))
+
   (testing "custom token arguments"
     (is (= {:error true :error-data "INVALID_LOCAL_ID"} (admin/create-custom-token "" nil)))
     (is (= {:error true :error-data "INVALID_LOCAL_ID"} (admin/create-custom-token (apply str (repeat 129 "x")) nil)))
@@ -586,6 +593,22 @@
 (deftest create-session-cookie-test
   (testing "a session cookie can't be minted from a token that isn't one"
     (is (:error (admin/create-session-cookie "not.a.real.token" @auth)))))
+
+(deftest default-arity-test
+  (testing "the no-options arities of the enumeration functions"
+    ;; every other test threads options through, so these arities were never
+    ;; actually called by anything
+    (is (map? (admin/list-users @auth)))
+    (is (some? (first (admin/list-all-users @auth))))
+    (is (some? (first (admin/search-users (take 1) @auth)))))
+
+  (testing "an expired token is re-minted rather than sent stale"
+    (let [prep (fresh-user)]
+      (try
+        ;; :expiry in the past drives the refresh branch, which mints a fresh
+        ;; token from :env mid-request
+        (is (= (:uid prep) (:uid (admin/get-user (:uid prep) (assoc @auth :expiry 0)))))
+        (finally (admin/delete-user (:uid prep) @auth))))))
 
 (deftest unauthorized-project-test
   (testing "reads against a project the credentials can't touch come back as errors"
