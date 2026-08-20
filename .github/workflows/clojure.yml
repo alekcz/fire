@@ -150,7 +150,11 @@ jobs:
         export PATH=$JAVA_HOME/bin:$PATH
         export PATH=$GRAALVM_HOME/bin:$PATH
         java -version
-        gu install native-image
+        # gu's component catalog on oca.opensource.oracle.com is gone, so
+        # `gu install native-image` can no longer resolve anything. install the
+        # component straight from the github release the jdk itself came from.
+        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
         bash ./graaltest.sh
 
     - name: Build native image Java-8
@@ -164,5 +168,9 @@ jobs:
         export PATH=$JAVA_HOME/bin:$PATH
         export PATH=$GRAALVM_HOME/bin:$PATH
         java -version
-        gu install native-image
+        # gu's component catalog on oca.opensource.oracle.com is gone, so
+        # `gu install native-image` can no longer resolve anything. install the
+        # component straight from the github release the jdk itself came from.
+        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
         bash ./graaltest.sh
