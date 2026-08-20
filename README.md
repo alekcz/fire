@@ -228,12 +228,46 @@ understands `:project-id` and `:tenant-id`.
 ;; many at once — identifiers that match nobody are simply absent
 (admin/get-users {:uids ["a" "b"] :emails ["person@domain.com"]} auth)
 
-;; and everybody, a page at a time or all in one go
+;; and everybody, a page at a time or as one lazy sequence
 (admin/list-users auth {:page-size 100})
 ; => {:users [...] :next-page-token "..."}
 (admin/list-all-users auth)
-; => [...]
+; => ({...} {...} ...)   lazy — pages are pulled in as you consume it
 ```
+
+`list-all-users` is lazy, so walking part of a project costs part of a project:
+
+```clojure
+(first (admin/list-all-users auth))     ; one request
+(take 10 (admin/list-all-users auth))   ; still one request
+```
+
+It throws if a page fails, rather than returning an error map like everything
+else here. That's deliberate: a lazy sequence has nowhere to put an error map,
+and stopping quietly would make a truncated list indistinguishable from a
+complete one — which is exactly the mistake you don't want to make while
+enumerating accounts.
+
+`search-users` composes a transducer over that enumeration, so a transducer
+that stops early stops the paging with it:
+
+```clojure
+;; the first 5 staff, however many users the project has
+(into [] (admin/search-users (comp (filter (comp :role :custom-claims))
+                                   (take 5))
+                             auth))
+
+;; everyone who has never signed in
+(into [] (admin/search-users (remove :last-login-at) auth))
+
+;; anyone still without a second factor
+(into [] (admin/search-users (filter (comp empty? :mfa-info)) auth))
+```
+
+Identity Toolkit has no query API, so this is a client-side scan: `(take n)`
+stops early, but a filter that matches nothing walks every user in the project.
+If you need to query users by attribute at scale, mirror them into Firestore as
+they are created.
 
 #### Updating
 

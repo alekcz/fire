@@ -244,18 +244,57 @@
        {:users (mapv convert-user-record (:users res))
         :next-page-token (:nextPageToken res)}))))
 
+(defn- page-seq
+  "Lazily walk a token-paginated endpoint. `fetch` is called with a page token
+   (nil for the first page) and returns a {:users [...] :next-page-token ...}
+   map, or an error map. Pages are fetched only as the sequence is consumed,
+   so (take 5 ...) costs one request rather than the whole project.
+
+   A failing page throws. That's the deliberate exception to this namespace's
+   never-throw rule: a lazy sequence has nowhere to put an error map, and the
+   alternative — stopping quietly — makes a truncated list indistinguishable
+   from a complete one. Enumeration is exactly where that gets someone hurt."
+  [fetch token]
+  (lazy-seq
+    (let [page (fetch token)]
+      (if (:error page)
+        (throw (ex-info (str "Failed to list users: " (:error-data page)) page))
+        (let [next-token (:next-page-token page)]
+          (concat (:users page)
+                  (when-not (str/blank? next-token)
+                    (page-seq fetch next-token))))))))
+
 (defn list-all-users
-  "Every user in the project, walking the pages for you. Eager, and an error
-   on any page short-circuits the whole thing rather than silently handing
-   back a truncated list."
+  "Every user in the project, as a lazy sequence. Pages are pulled in as you
+   consume it, so this is safe on a project too big to hold in memory and
+   cheap to walk only part of:
+
+     (first (list-all-users auth))          ; one request
+     (take 10 (list-all-users auth))        ; still one request
+
+   Tune :page-size down if you expect to stop early and want smaller requests.
+   Throws if a page fails — see page-seq for why that isn't an error map."
   ([auth] (list-all-users auth nil))
   ([auth options]
-   (loop [acc [] token nil]
-     (let [page (list-users auth (assoc options :page-token token))]
-       (cond
-         (:error page) page
-         (str/blank? (:next-page-token page)) (into acc (:users page))
-         :else (recur (into acc (:users page)) (:next-page-token page)))))))
+   (page-seq #(list-users auth (assoc options :page-token %)) nil)))
+
+(defn search-users
+  "Users matching a transducer. Composes over the lazy enumeration above, so a
+   transducer that stops early stops the paging with it:
+
+     ;; the first 5 staff, however many users the project has
+     (into [] (search-users (comp (filter (comp :role :custom-claims))
+                                  (take 5))
+                            auth))
+
+     ;; everyone who never signed in
+     (into [] (search-users (remove :last-login-at) auth))
+
+   Identity Toolkit has no query api, so this is a client-side scan: (take n)
+   stops early, but a filter matching nothing walks every user in the project.
+   Returns an eduction — reduce it, seq it, or pour it into a collection."
+  ([xform auth] (search-users xform auth nil))
+  ([xform auth options] (eduction xform (list-all-users auth options))))
 
 ; writing users
 

@@ -203,6 +203,65 @@
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 60})))
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 2000000})))))
 
+(def ^:private fake-pages
+  {nil  {:users [1 2] :next-page-token "t1"}
+   "t1" {:users [3 4] :next-page-token "t2"}
+   "t2" {:users [5]   :next-page-token nil}})
+
+(defn- counting-fetch
+  "A fake paginated endpoint that records which page tokens it was asked for."
+  [calls]
+  (fn [token] (swap! calls conj token) (get fake-pages token)))
+
+(deftest ^:offline page-seq-test
+  (let [calls (atom [])
+        fetch (counting-fetch calls)]
+
+    (testing "every page is walked, in order, and the tokens chain"
+      (reset! calls [])
+      (is (= [1 2 3 4 5] (vec (#'admin/page-seq fetch nil))))
+      (is (= [nil "t1" "t2"] @calls)))
+
+    (testing "nothing is fetched until the sequence is consumed"
+      (reset! calls [])
+      (let [s (#'admin/page-seq fetch nil)]
+        (is (= [] @calls))
+        (is (= 1 (first s)))
+        (is (= [nil] @calls))))
+
+    (testing "only the pages actually needed are fetched"
+      (reset! calls [])
+      (is (= [1 2 3] (take 3 (#'admin/page-seq fetch nil))))
+      ;; the third element lives on page two, so page three is never requested
+      (is (= [nil "t1"] @calls)))
+
+    (testing "a transducer that stops early stops the paging with it"
+      (reset! calls [])
+      (is (= [1 2] (into [] (take 2) (#'admin/page-seq fetch nil))))
+      (is (= [nil] @calls)))
+
+    (testing "the last page ends the sequence without another request"
+      (reset! calls [])
+      (is (= 5 (count (#'admin/page-seq fetch nil))))
+      (is (= 3 (count @calls))))))
+
+(deftest ^:offline page-seq-failure-test
+  (testing "a failing page throws rather than truncating silently"
+    ;; the whole point: a short list must not be mistakable for a complete one
+    (let [boom (fn [_] {:error true :error-data "PERMISSION_DENIED"})]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"PERMISSION_DENIED"
+            (doall (#'admin/page-seq boom nil))))
+      (is (:error (ex-data (try (doall (#'admin/page-seq boom nil))
+                                (catch clojure.lang.ExceptionInfo e e)))))))
+
+  (testing "a page that fails midway still throws, after yielding what came before"
+    (let [pages {nil {:users [1 2] :next-page-token "t1"}
+                 "t1" {:error true :error-data "PERMISSION_DENIED"}}
+          fetch #(get pages %)
+          s (#'admin/page-seq fetch nil)]
+      (is (= [1 2] (take 2 s)))
+      (is (thrown? clojure.lang.ExceptionInfo (doall s))))))
+
 (deftest ^:offline long-parse-test
   (testing "identity toolkit int64s arrive as strings, and junk degrades to nil"
     (is (= 1700000000000 (#'admin/->long "1700000000000")))
@@ -316,9 +375,22 @@
           (is (not= (map :uid (:users page))
                     (map :uid (:users (admin/list-users @auth {:page-size 1 :page-token (:next-page-token page)}))))))
         (let [everyone (admin/list-all-users @auth {:page-size 2})]
-          (is (vector? everyone))
+          (is (seq everyone))
           (is (contains? (set (map :uid everyone)) (:uid a)))
           (is (contains? (set (map :uid everyone)) (:uid b))))
+        (testing "the lazy enumeration only pages as far as it is consumed"
+          ;; a page size of one means taking two users is two requests, not the
+          ;; whole project — the assertion is that this returns at all, quickly
+          (is (= 2 (count (take 2 (admin/list-all-users @auth {:page-size 1}))))))
+        (testing "search-users filters over that same enumeration"
+          (let [found (into [] (admin/search-users
+                                 (comp (filter #(= (:uid a) (:uid %))) (take 1))
+                                 @auth
+                                 {:page-size 100}))]
+            (is (= [(:uid a)] (map :uid found))))
+          ;; a transducer that matches nothing still terminates
+          (is (= [] (into [] (admin/search-users (filter (constantly false)) @auth
+                                                 {:page-size 1000})))))
         (finally
           (admin/delete-user (:uid a) @auth)
           (admin/delete-user (:uid b) @auth))))))

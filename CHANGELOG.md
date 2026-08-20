@@ -14,7 +14,9 @@ All notable changes to this project will be documented in this file. This change
     `generate-password-reset-link`, `generate-email-verification-link`,
     `delete-user`.
   - Beyond it: `update-user` (many fields at once, nil clears a field),
-    `get-users`, `list-users`, `list-all-users`, `set-user-email-verified`,
+    `get-users`, `list-users`, `list-all-users` (lazy — pages are fetched as
+    the sequence is consumed), `search-users` (a transducer over that
+    enumeration), `set-user-email-verified`,
     `disable-user`, `enable-user`, `set-custom-user-claims`,
     `unlink-provider`, `revoke-refresh-tokens`, `delete-users`,
     `generate-sign-in-with-email-link`,
