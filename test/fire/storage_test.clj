@@ -98,3 +98,24 @@
 ;;       (is (= contents dl1 thawed))
 ;;       (is (= dl2 (slurp deleted)))
 ;;       (is (str/includes? dl2 "o such object")))))
+;; ---------------------------------------------------------------------------
+;; Bucket naming. Firebase changed the default suffix in late 2024, so which
+;; name a project answers on depends on when it was created — fire probes both
+;; rather than guessing.
+;; ---------------------------------------------------------------------------
+
+(deftest ^:offline bucket-candidates-test
+  (testing "both bucket conventions are tried, newest first"
+    (is (= ["my-project.firebasestorage.app" "my-project.appspot.com"]
+           (#'store/bucket-candidates "my-project")))))
+
+(deftest bucket-resolution-test
+  (testing "the project's real bucket is found and then cached"
+    (let [auth (fire-auth/create-token)
+          project (:project-id auth)]
+      (reset! @#'store/resolved-buckets {})
+      (let [resolved (#'store/default-bucket project (:token auth))]
+        (is (contains? (set (#'store/bucket-candidates project)) resolved))
+        ;; cached, so the second call doesn't probe again
+        (is (= resolved (get @#'store/resolved-buckets project)))
+        (is (= resolved (#'store/default-bucket project (:token auth))))))))

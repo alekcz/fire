@@ -11,6 +11,35 @@
 
 (def sni-client (delay (client/make-client {:ssl-configurer sni-client/ssl-configurer})))
 
+;; firebase changed the default storage bucket suffix in late 2024: projects
+;; created after that answer on <project>.firebasestorage.app, while older ones
+;; still answer on <project>.appspot.com. Rather than guess a project's vintage
+;; — and get it wrong for half of them — probe once and remember the answer.
+(defonce ^:private resolved-buckets (atom {}))
+
+(defn- bucket-candidates [project-id]
+  [(str project-id ".firebasestorage.app")
+   (str project-id ".appspot.com")])
+
+(defn- bucket-exists? [bucket token]
+  (binding [org.httpkit.client/*default-client* sni-client]
+    (let [res @(client/request (cond-> {:method :get
+                                        :url (str utils/storage-download-root "/" bucket)}
+                                 token (assoc :headers {"Authorization" (str "Bearer " token)})))]
+      ;; 404 is the only answer that definitely means "no such bucket"; a 401 or
+      ;; 403 means it's there and we simply can't read its metadata.
+      (not= 404 (:status res)))))
+
+(defn- default-bucket
+  "The project's storage bucket, resolved once per project and cached."
+  [project-id token]
+  (or (get @resolved-buckets project-id)
+      (let [candidates (bucket-candidates project-id)
+            found (or (first (filter #(bucket-exists? % token) candidates))
+                      (first candidates))]
+        (swap! resolved-buckets assoc project-id found)
+        found)))
+
 
 (defn stream->bytes [is]
   (let [baos (java.io.ByteArrayOutputStream.)]
@@ -25,7 +54,7 @@
                     (:token auth) 
                     (-> auth :env auth/create-token :token)))
           bucket (or (:bucket options)
-                     (str (or (:project-id options) (:project-id auth)) ".firebasestorage.app"))
+                     (default-bucket (or (:project-id options) (:project-id auth)) token))
           url (str domain "/" bucket url')
           request-options (reduce utils/recursive-merge 
                               [{:method method}
