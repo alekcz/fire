@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [0.7.0] - 2026-08-20
+## [0.7.0-RC1] - 2026-08-20
 ### Added
 - `fire.admin` — user management against the Identity Toolkit REST API. No
   Admin SDK dependency and no `init` singleton: the `auth` map is passed in
