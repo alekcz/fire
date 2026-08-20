@@ -91,3 +91,10 @@ jobs:
         source ~/.profile
         npm install -g firebase-tools@8.5.0
         bash ./ci.sh
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./target/coverage/codecov.json
+        fail_ci_if_error: false
