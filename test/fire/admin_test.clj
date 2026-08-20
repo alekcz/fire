@@ -203,6 +203,19 @@
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 60})))
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 2000000})))))
 
+(deftest ^:offline long-parse-test
+  (testing "identity toolkit int64s arrive as strings, and junk degrades to nil"
+    (is (= 1700000000000 (#'admin/->long "1700000000000")))
+    (is (= 42 (#'admin/->long 42)))
+    (is (nil? (#'admin/->long nil)))
+    (is (nil? (#'admin/->long "not-a-number")))))
+
+(deftest ^:offline missing-credentials-test
+  (testing "signing a custom token without a private key to sign it with"
+    ;; an env var that resolves to nothing, rather than one that throws
+    (is (= {:error true :error-data "MISSING_CREDENTIALS"}
+           (admin/create-custom-token "uid-123" {:env :non-existent-key})))))
+
 (deftest ^:offline validate-token-fails-closed-test
   (testing "a token that doesn't survive fire.auth never reaches the account lookup"
     ;; no network and no credentials involved: the signature check rejects first
@@ -490,6 +503,19 @@
 (deftest create-session-cookie-test
   (testing "a session cookie can't be minted from a token that isn't one"
     (is (:error (admin/create-session-cookie "not.a.real.token" @auth)))))
+
+(deftest unauthorized-project-test
+  (testing "reads against a project the credentials can't touch come back as errors"
+    ;; every read path has an error branch that the happy-path tests never reach
+    (let [nowhere {:project-id "fire-no-such-project-000"}]
+      (is (:error (admin/get-user "uid" @auth nowhere)))
+      (is (:error (admin/get-users {:uids ["uid"]} @auth nowhere)))
+      (is (:error (admin/list-users @auth nowhere)))
+      (is (:error (admin/list-all-users @auth nowhere)))
+      (is (:error (admin/list-user-factors "uid" @auth nowhere)))
+      (is (:error (admin/delete-users ["uid"] @auth nowhere)))
+      (is (:error (admin/unenroll-user-factor "uid" "enrollment" @auth nowhere)))
+      (is (:error (admin/create-session-cookie "token" @auth nowhere))))))
 
 (deftest unlink-provider-test
   (testing "unlinking a provider drops that identity but keeps the account"
