@@ -124,10 +124,17 @@ qwEFwqRUFo+nrwDhrCmruQ==
               (.update (.getBytes signing-input "UTF-8")))]
     (str signing-input "." (b64url (.sign sig)))))
 
-(defn- with-fixture-cert [f]
-  (let [prior @@#'fire-auth/cert-cache]
-    (reset! @#'fire-auth/cert-cache {:certs {:test-kid fixture-cert} :fetched-at (utils/now)})
-    (try (f) (finally (reset! @#'fire-auth/cert-cache prior)))))
+(defn- with-fixture-cert
+  "Install the fixture cert under both key sets fire.auth verifies against —
+   id tokens and session cookies are signed by different keys — so either
+   kind of token resolves to it."
+  [f]
+  (let [cache @#'fire-auth/cert-cache
+        prior @cache
+        entry {:certs {:test-kid fixture-cert} :fetched-at (utils/now)}]
+    (reset! cache {@#'fire-auth/id-token-certs-url entry
+                   @#'fire-auth/session-cookie-certs-url entry})
+    (try (f) (finally (reset! cache prior)))))
 
 (defn- fixture-claims [now]
   {:iss "https://securetoken.google.com/test-project" :aud "test-project"
@@ -170,3 +177,121 @@ qwEFwqRUFo+nrwDhrCmruQ==
   (testing "parses a real PEM X.509 certificate into an RSA PublicKey"
     (let [pubkey (fire-auth/cert->public-key fixture-cert)]
       (is (= "RSA" (.getAlgorithm pubkey))))))
+;; ---------------------------------------------------------------------------
+;; Second factor claims. Firebase puts sign-in metadata inside the token's
+;; :firebase block; on Identity Platform that block also carries
+;; sign_in_second_factor, which is the ONLY server-side proof that a second
+;; factor was actually presented at sign-in. A valid signature is not.
+;;
+;; These run entirely offline against the fixture cert above — the token is
+;; hand-built and signed here, so the :firebase block can be set to exactly
+;; the three shapes a real project produces: totp, sms, and legacy.
+;; ---------------------------------------------------------------------------
+
+(defn- claims-with
+  "fixture-claims whose :firebase block carries the given extra claims."
+  [now extra]
+  (assoc (fixture-claims now)
+         :user_id "uid-123"
+         :firebase (merge {:identities {:email ["person@example.com"]}
+                           :sign_in_provider "password"}
+                          extra)))
+
+(deftest second-factor-claims-test
+  (with-fixture-cert
+    (fn []
+      (let [now (utils/now)
+            totp   (claims-with now {:sign_in_second_factor "totp" :second_factor_identifier "enrollment-1"})
+            sms    (claims-with now {:sign_in_second_factor "phone" :second_factor_identifier "enrollment-2"})
+            legacy (claims-with now {})
+            verify #(fire-auth/validate-token "test-project" (sign-fixture-token %))]
+
+        (testing "a totp second factor is surfaced at the top level"
+          (let [res (verify totp)]
+            (is (= "totp" (:sign_in_second_factor res)))
+            (is (= "enrollment-1" (:second_factor_identifier res)))
+            (is (= "password" (:sign_in_provider res)))))
+
+        (testing "an sms second factor is surfaced the same way"
+          (let [res (verify sms)]
+            (is (= "phone" (:sign_in_second_factor res)))
+            (is (= "enrollment-2" (:second_factor_identifier res)))))
+
+        (testing "no mfa at sign-in (or legacy firebase auth) means nil, not absent"
+          (let [res (verify legacy)]
+            ;; nil is the fail-closed signal — an enforcing consumer denies on it
+            (is (nil? (:sign_in_second_factor res)))
+            (is (nil? (:second_factor_identifier res)))
+            ;; but the keys are there either way, so destructuring is safe
+            (is (contains? res :sign_in_second_factor))
+            (is (contains? res :second_factor_identifier))))
+
+        (testing "an invalid token is still nil outright, not a nil second factor"
+          (is (nil? (verify (assoc totp :exp (- now 10)))))
+          (is (nil? (fire-auth/validate-token "test-project" "not.a.jwt"))))
+
+        (testing "the raw claims are untouched — this is purely additive"
+          (let [res (verify totp)]
+            (is (= "totp" (-> res :firebase :sign_in_second_factor)))
+            (is (= "test-project" (:aud res)))
+            (is (= "uid-123" (:sub res)))
+            (is (= "uid-123" (:uid res)))
+            (is (= "test-project" (:projectid res)))
+            ;; every raw claim still resolves to what it did before the merge
+            (is (= (select-keys totp (keys totp)) (select-keys res (keys totp))))))))))
+
+(deftest format-result-test
+  (testing "format-result flattens the :firebase block and nothing else"
+    (let [now (utils/now)
+          claims (claims-with now {:sign_in_second_factor "totp" :second_factor_identifier "enrollment-1"})
+          res (fire-auth/format-result claims)]
+      (is (= {:projectid "test-project"
+              :uid "uid-123"
+              :email "person@example.com"
+              :email_verified true
+              :sign_in_provider "password"
+              :sign_in_second_factor "totp"
+              :second_factor_identifier "enrollment-1"
+              :exp (+ now 3600)
+              :auth_time now}
+             res))))
+  (testing "uid falls back to :sub when a token carries no :user_id"
+    (is (= "uid-123" (:uid (fire-auth/format-result (fixture-claims (utils/now)))))))
+  (testing "nil in, nil out"
+    (is (nil? (fire-auth/format-result nil)))))
+
+;; ---------------------------------------------------------------------------
+;; Session cookies. Same RS256 verification as an ID token, but signed by a
+;; different key set and carrying a different issuer — which is exactly the
+;; thing worth testing, since getting the issuer wrong would happily verify
+;; one kind of token as the other.
+;; ---------------------------------------------------------------------------
+
+(defn- session-claims [now]
+  (assoc (fixture-claims now)
+         :iss "https://session.firebase.google.com/test-project"
+         :user_id "uid-123"
+         :firebase {:sign_in_provider "password" :sign_in_second_factor "totp"}))
+
+(deftest validate-session-cookie-test
+  (with-fixture-cert
+    (fn []
+      (let [now (utils/now)
+            cookie (sign-fixture-token (session-claims now))
+            id-token (sign-fixture-token (assoc (fixture-claims now) :user_id "uid-123"))]
+
+        (testing "a well-formed session cookie verifies, and flattens like a token does"
+          (let [res (fire-auth/validate-session-cookie "test-project" cookie)]
+            (is (some? res))
+            (is (= "uid-123" (:uid res)))
+            (is (= "totp" (:sign_in_second_factor res)))))
+
+        (testing "the two kinds don't verify as each other — the issuers differ"
+          (is (nil? (fire-auth/validate-token "test-project" cookie)))
+          (is (nil? (fire-auth/validate-session-cookie "test-project" id-token))))
+
+        (testing "wrong project, expiry and garbage are refused the same way"
+          (is (nil? (fire-auth/validate-session-cookie "other-project" cookie)))
+          (is (nil? (fire-auth/validate-session-cookie "test-project"
+                      (sign-fixture-token (assoc (session-claims now) :exp (- now 10))))))
+          (is (nil? (fire-auth/validate-session-cookie "test-project" "not.a.cookie"))))))))

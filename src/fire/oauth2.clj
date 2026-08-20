@@ -21,27 +21,45 @@
           (PKCS8EncodedKeySpec.)
           (.generatePrivate kf))))
 
-(defn sign [claims' priv-key]
-  (let [^Base64$Encoder b64encoder (. Base64 	getUrlEncoder)
-        ^Signature sig (Signature/getInstance "SHA256withRSA")
-        strip (fn [s] (str/replace s "=" ""))
-        encode (fn [b] (strip (.encodeToString b64encoder (.getBytes ^String b "UTF-8"))))
-        rencode (fn [b] (strip (.encodeToString b64encoder ^"[B" b)))
-        header "{\"alg\":\"RS256\"}"
-        claims (utils/encode claims')
-        jwtbody (str (encode header) "." (encode claims))]
-        (.initSign sig priv-key)
-        (.update sig (.getBytes ^String jwtbody "UTF-8"))
-        (str jwtbody "." (rencode (.sign sig)))))
+(defn sign
+  "Sign claims into an RS256 JWT. The header defaults to the bare {:alg \"RS256\"}
+   this has always emitted; firebase custom tokens want :typ in there too, so it
+   can be passed in."
+  ([claims' priv-key] (sign claims' priv-key {:alg "RS256"}))
+  ([claims' priv-key header']
+    (let [^Base64$Encoder b64encoder (. Base64 	getUrlEncoder)
+          ^Signature sig (Signature/getInstance "SHA256withRSA")
+          strip (fn [s] (str/replace s "=" ""))
+          encode (fn [b] (strip (.encodeToString b64encoder (.getBytes ^String b "UTF-8"))))
+          rencode (fn [b] (strip (.encodeToString b64encoder ^"[B" b)))
+          header (utils/encode header')
+          claims (utils/encode claims')
+          jwtbody (str (encode header) "." (encode claims))]
+          (.initSign sig priv-key)
+          (.update sig (.getBytes ^String jwtbody "UTF-8"))
+          (str jwtbody "." (rencode (.sign sig))))))
+
+(defn credentials
+  "Decode the service account credentials held in the named environment
+   variable. fire.admin needs the private key and client email out of these
+   to mint custom tokens, which is signing rather than an api call."
+  [env-var]
+  (-> env-var utils/clean-env-var env utils/decode))
 
 (defn get-token [env-var]
-  (let [auth (-> env-var utils/clean-env-var env utils/decode)]
+  (let [auth (credentials env-var)]
     (if-not (:private_key auth)
       nil
       (binding [org.httpkit.client/*default-client* sni-client/default-client]
-        (let [scopes "https://www.googleapis.com/auth/firebase.database 
-                      https://www.googleapis.com/auth/userinfo.email 
-                      https://www.googleapis.com/auth/devstorage.full_control"
+        (let [scopes (str/join " "
+                       ["https://www.googleapis.com/auth/firebase.database"
+                        "https://www.googleapis.com/auth/userinfo.email"
+                        "https://www.googleapis.com/auth/devstorage.full_control"
+                        ;; user management in fire.admin goes through the identity
+                        ;; toolkit api, which none of the scopes above cover — without
+                        ;; this one every admin call comes back 403.
+                        "https://www.googleapis.com/auth/identitytoolkit"
+                        "https://www.googleapis.com/auth/firebase"])
               aud "https://oauth2.googleapis.com/token"
               t (utils/now)
               private-key (-> auth :private_key str->private-key)
