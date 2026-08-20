@@ -174,6 +174,9 @@
     (is (= {:error true :error-data "INVALID_PHONE_NUMBER"} (admin/set-user-phone-number "uid" "" nil)))
     (is (= {:error true :error-data "INVALID_PHOTO_URL"} (admin/set-user-photo-url "uid" "domain.com/pic.jpg" nil)))
     (is (= {:error true :error-data "MISSING_PASSWORD"} (admin/set-user-password "uid" "" nil)))
+    (is (= {:error true :error-data "WEAK_PASSWORD"} (admin/set-user-password "uid" "12345" nil)))
+    (is (= {:error true :error-data "WEAK_PASSWORD"} (admin/update-user "uid" {:password "123"} nil)))
+    (is (= {:error true :error-data "WEAK_PASSWORD"} (admin/create-user "a@b.com" "123" nil)))
     (is (= {:error true :error-data "INVALID_LOCAL_ID"} (admin/set-user-display-name "" "Charmander" nil)))
     (is (= {:error true :error-data "INVALID_LOCAL_ID"} (admin/delete-user "" nil)))
     (is (= {:error true :error-data "INVALID_LOCAL_ID"} (admin/delete-user nil nil)))
@@ -370,8 +373,10 @@
     (let [prep (fresh-user)]
       (try
         (is (= (:uid prep) (:uid (admin/set-user-password (:uid prep) "Charizard" @auth))))
-        (is (:error (admin/set-user-password (:uid prep) "" @auth)))
-        (is (:error (admin/set-user-password (:uid prep) "123" @auth)))
+        (is (= "MISSING_PASSWORD" (:error-data (admin/set-user-password (:uid prep) "" @auth))))
+        ;; firebase's REST update endpoint does not enforce its own six character
+        ;; minimum — the admin SDK did it client-side, and so does fire
+        (is (= "WEAK_PASSWORD" (:error-data (admin/set-user-password (:uid prep) "123" @auth))))
         (finally (admin/delete-user (:uid prep) @auth))))))
 
 (deftest email-verified-and-disabled-test
@@ -455,7 +460,12 @@
       (try
         (is (str/includes? (admin/generate-email-verification-link email @auth) "https://"))
         (is (str/includes? (admin/generate-password-reset-link email @auth) "https://"))
-        (is (str/includes? (admin/generate-sign-in-with-email-link email "https://domain.com/done" @auth) "https://"))
+        ;; passwordless email-link sign-in is a provider that has to be switched on
+        ;; per project. where it isn't, firebase answers OPERATION_NOT_ALLOWED —
+        ;; which still proves the request fire built was well formed and understood.
+        (let [link (admin/generate-sign-in-with-email-link email "https://domain.com/done" @auth)]
+          (is (or (and (string? link) (str/includes? link "https://"))
+                  (= "OPERATION_NOT_ALLOWED" (:error-data link)))))
         (is (str/includes? (admin/generate-verify-and-change-email-link email (unique-email) @auth) "https://"))
         (finally (admin/delete-user (:uid prep) @auth)))))
 

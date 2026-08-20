@@ -295,3 +295,26 @@ qwEFwqRUFo+nrwDhrCmruQ==
           (is (nil? (fire-auth/validate-session-cookie "test-project"
                       (sign-fixture-token (assoc (session-claims now) :exp (- now 10))))))
           (is (nil? (fire-auth/validate-session-cookie "test-project" "not.a.cookie"))))))))
+
+;; ---------------------------------------------------------------------------
+;; The real cert endpoints. Everything above runs against a fixture cert, which
+;; leaves the fetch-and-cache path — the one that has to keep working as Google
+;; rotates keys — untested. This needs the network but no credentials.
+;; ---------------------------------------------------------------------------
+
+(deftest fetch-google-certs-test
+  (doseq [[label url] [["id token" @#'fire-auth/id-token-certs-url]
+                       ["session cookie" @#'fire-auth/session-cookie-certs-url]]]
+    (testing (str "google's public " label " certs are fetched and then cached")
+      (reset! @#'fire-auth/cert-cache {})
+      (let [certs (#'fire-auth/current-certs url)]
+        (is (map? certs))
+        (is (seq certs))
+        (is (every? #(str/includes? (str %) "BEGIN CERTIFICATE") (vals certs)))
+        ;; the second call is served from the cache rather than the network
+        (is (= certs (#'fire-auth/current-certs url)))
+        (is (some? (get-in @@#'fire-auth/cert-cache [url :certs])))))))
+
+(deftest fetch-certs-failure-test
+  (testing "an unreachable cert endpoint throws rather than caching nothing"
+    (is (thrown? Exception (#'fire-auth/fetch-certs "https://www.googleapis.com/robot/v1/metadata/x509/does-not-exist")))))
