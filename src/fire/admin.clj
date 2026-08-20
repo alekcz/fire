@@ -63,6 +63,14 @@
   [phone-number]
   (boolean (and (string? phone-number) (re-matches #"\+[1-9]\d{1,14}" phone-number))))
 
+(defn- short-password?
+  "Firebase's own six character minimum. The Admin SDK checked this client-side,
+   so charmander callers got an error without a round trip — the REST update
+   endpoint doesn't check it at all, which would silently let a one character
+   password through. Checked here so the rule survives the port."
+  [password]
+  (< (count (str password)) 6))
+
 (defn- valid-url? [url]
   (boolean (and (string? url)
                 (not (str/blank? url))
@@ -292,6 +300,7 @@
      (cond
        (str/blank? uid) (err "INVALID_LOCAL_ID")
        problem (err problem)
+       (and (:password fields) (short-password? (:password fields))) (err "WEAK_PASSWORD")
        :else
        (let [res (request {:path "/accounts:update"
                            :body (assoc (->update-body fields) :localId uid)}
@@ -311,7 +320,8 @@
    real, complete one."
   ([email password auth] (create-user email password auth nil))
   ([email password auth options]
-   (let [problem (when (contains? options :custom-claims) (claims-problem (:custom-claims options)))
+   (let [problem (or (when (contains? options :custom-claims) (claims-problem (:custom-claims options)))
+                     (when (short-password? password) "WEAK_PASSWORD"))
          payload (cond-> {:email email
                           :password password
                           :emailVerified (boolean (:email-verified options))
@@ -347,9 +357,10 @@
   "Set a user's password."
   ([uid password auth] (set-user-password uid password auth nil))
   ([uid password auth options]
-   (if (str/blank? password)
-     (err "MISSING_PASSWORD")
-     (update-user uid {:password password} auth options))))
+   (cond
+     (str/blank? password) (err "MISSING_PASSWORD")
+     (short-password? password) (err "WEAK_PASSWORD")
+     :else (update-user uid {:password password} auth options))))
 
 (defn set-user-phone-number
   "Set a user's phone number, which must be E.164 (a leading + and up to 15
