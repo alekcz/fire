@@ -456,6 +456,7 @@
         (is (str/includes? (admin/generate-email-verification-link email @auth) "https://"))
         (is (str/includes? (admin/generate-password-reset-link email @auth) "https://"))
         (is (str/includes? (admin/generate-sign-in-with-email-link email "https://domain.com/done" @auth) "https://"))
+        (is (str/includes? (admin/generate-verify-and-change-email-link email (unique-email) @auth) "https://"))
         (finally (admin/delete-user (:uid prep) @auth)))))
 
   (testing "links for something that isn't an email address are refused"
@@ -479,6 +480,45 @@
 (deftest create-session-cookie-test
   (testing "a session cookie can't be minted from a token that isn't one"
     (is (:error (admin/create-session-cookie "not.a.real.token" @auth)))))
+
+(deftest unlink-provider-test
+  (testing "unlinking a provider drops that identity but keeps the account"
+    (let [prep (fresh-user)
+          uid (:uid prep)]
+      (try
+        (let [with-phone (admin/set-user-phone-number uid "+27123456789" @auth)]
+          (is (= "+27123456789" (:phone-number with-phone)))
+          (is (contains? (set (map :provider-id (:provider-data with-phone))) "phone")))
+        (let [unlinked (admin/unlink-provider uid "phone" @auth)]
+          (is (= uid (:uid unlinked)))
+          (is (nil? (:phone-number unlinked)))
+          (is (not (contains? (set (map :provider-id (:provider-data unlinked))) "phone"))))
+        (finally (admin/delete-user uid @auth))))))
+
+(deftest revocation-test
+  (testing "the checks behind admin/validate-token that fire.auth can't make"
+    ;; a real firebase ID token needs a web api key to obtain, which this repo
+    ;; doesn't wire into CI — so this drives the check with synthetic claims
+    ;; against real accounts. That's the half fire.auth structurally cannot do,
+    ;; and the half worth being sure about.
+    (let [prep (fresh-user)
+          uid (:uid prep)]
+      (try
+        (testing "an untouched account passes"
+          (is (true? (boolean (#'admin/still-good? {:uid uid :iat (utils/now)} @auth nil)))))
+
+        (testing "a token issued before a revocation stops passing"
+          (admin/revoke-refresh-tokens uid @auth)
+          (is (false? (boolean (#'admin/still-good? {:uid uid :iat (- (utils/now) 3600)} @auth nil)))))
+
+        (testing "a disabled account fails however new the token is"
+          (admin/disable-user uid @auth)
+          (is (false? (boolean (#'admin/still-good? {:uid uid :iat (+ (utils/now) 3600)} @auth nil)))))
+
+        (finally (admin/delete-user uid @auth))))
+
+    (testing "and a token for somebody who no longer exists fails closed"
+      (is (false? (boolean (#'admin/still-good? {:uid (str (uuid/v1)) :iat (utils/now)} @auth nil)))))))
 
 (deftest delete-user-test
   (testing "deleting a user returns nil, and deleting a stranger is an error"
