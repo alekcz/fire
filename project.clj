@@ -1,4 +1,4 @@
-(defproject alekcz/fire "0.6.0-SNAPSHOT"
+(defproject alekcz/fire "0.7.0"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
@@ -19,6 +19,11 @@
   :global-vars {*warn-on-reflection* true}
   :main fire.graal
   :repl-options {:init-ns fire.core}
+  ;; the tests split in two: those that need real firebase credentials, and
+  ;; those that don't. `lein test :offline` runs only the second kind, which is
+  ;; what CI can check on a fork or before secrets are in play.
+  :test-selectors {:default (constantly true)
+                   :offline :offline}
   :cloverage {:runner :eftest
               :runner-opts {:test-warn-time 500
                             :fail-fast? false

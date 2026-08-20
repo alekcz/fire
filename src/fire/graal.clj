@@ -1,10 +1,14 @@
 (ns fire.graal 
   (:require [fire.core :as fire]
+            [fire.admin :as admin]
             [fire.auth :as auth]
             [fire.socket :as socket]
             [fire.storage :as storage]
+            [fire.utils :as utils]
             [fire.vision :as vision]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clojure.string :as str])
+  (:import [java.util Base64])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
@@ -61,9 +65,23 @@
       (println answer)
       res))
 
+(defn admin-main []
+  ;; deliberately the one admin path with no api call and no side effect behind
+  ;; it: minting a custom token is local RSA signing. That still exercises the
+  ;; namespace under native-image — and native-image plus crypto is exactly
+  ;; where things tend to break — without creating users on every build.
+  (let [auth (auth/create-token :fire)
+        token (admin/create-custom-token "graal-admin" auth {:claims {:graal true}})
+        payload (-> (str token) (str/split #"\." 3) second)
+        claims (utils/decode (String. (.decode (Base64/getUrlDecoder) ^String payload) "UTF-8"))]
+    (println (= {:graal true} (:claims claims)))
+    (println (:uid claims))
+    (:uid claims)))
+
 (defn -main [ & _]
   (core-main)
   (socket-main)
   (storage-main)
   (vision-main)
+  (admin-main)
   "graal")

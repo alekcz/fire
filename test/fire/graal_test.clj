@@ -19,6 +19,10 @@
   (testing "Run ocr main function"
     (is (= "GraalVM" (str/trim (graal/vision-main))))))                
 
+(deftest graal-test-admin
+  (testing "Run admin main function"
+    (is (= "graal-admin" (graal/admin-main)))))
+
 (deftest graal-test-overall
   (testing "Run graal main function"
     (is (= "graal" (str/trim (graal/-main)))))) 

@@ -1,0 +1,25 @@
+# Coverage thresholds, chosen deliberately.
+#
+# Without this file codecov defaults the patch target to 100%, which no commit
+# in this repo's history has ever met — the checks were failing against a bar
+# nobody set. 95% is the bar we actually want to hold.
+#
+# The project baseline is also worth knowing about: codecov compares against
+# the last commit it received a report from, and the bash uploader had been
+# dead since 2022, so that baseline predates 0.6.0 entirely. It will correct
+# itself once master uploads again.
+coverage:
+  status:
+    project:
+      default:
+        target: 95%
+        # a little give, so an unrelated refactor that shifts a line or two
+        # doesn't turn the build red
+        threshold: 0.5%
+    patch:
+      default:
+        target: 95%
+
+comment:
+  layout: "reach, diff, files"
+  require_changes: true

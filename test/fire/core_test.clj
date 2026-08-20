@@ -22,6 +22,17 @@
 
 (defn non-zero [n] (inc (rand-int n)))
 
+(defn unique-path
+  "Where a test's data lives. The seeded segment is deliberate — it exercises
+   awkward generated strings as path keys — but on its own it only varies
+   across about twenty values, so a run that dies before its cleanup leaves
+   records behind for a later run to find and count. The uuid segment keeps
+   each run's data to itself, so debris from a failed run can never be
+   mistaken for this run's writes."
+  [seed]
+  (str "/fire-test/t-" seed "/" (java.util.UUID/randomUUID)
+       "/" (mg/generate string? {:size (non-zero 20) :seed seed})))
+
 (defn random-homes [n] 
   (for [r (range n)]
     (-> (mg/generate home {:size (+ (mod r 10) 11) :seed r}) 
@@ -48,7 +59,7 @@
           updated-home (update-in home [:address :number] inc)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           resp (fire/push! db path home auth)
           npath (str path "/" (:name resp))
           read0  (fire/read db path auth)
@@ -72,7 +83,7 @@
           two-hours (* 2 60 60 1000)
           auth (update auth' :expiry - two-hours)
           db (str "https://" (:project-id auth) ".firebaseio.com") 
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           _ (fire/write! db path home auth)
           read1  (fire/read db path auth)
           _ (fire/update! db path updated-home auth)
@@ -91,7 +102,7 @@
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           pool (cp/threadpool 100)
           _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
           read (fire/read db path auth {:query {:shallow true}})
@@ -110,7 +121,7 @@
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           pool (cp/threadpool 10)
           _ (doall (cp/pmap pool #(fire/push! db path % auth {:async true}) homes))
           _ (Thread/sleep 12000)
@@ -135,7 +146,7 @@
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           pool (cp/threadpool 100)
           _ (doall (cp/pmap pool #(fire/push! db path % auth) homes))
           _ (Thread/sleep 6000)
@@ -158,7 +169,7 @@
           homes (random-homes num)
           auth (fire-auth/create-token :fire)
           db (:project-id auth)
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           pool (cp/threadpool 100)
           _ (doall (cp/pmap pool #(fire/push! db path % auth ) homes))
           _ (Thread/sleep 2000)
@@ -209,7 +220,7 @@
           updated-home (update-in home [:address :number] inc)
           auth nil
           db "http://localhost:9000"
-          path (str "/fire-test/t-" seed "/" (mg/generate string? {:size (non-zero 20) :seed seed}))
+          path (unique-path seed)
           resp (fire/push! db path home auth)
           npath (str path "/" (:name resp))
           read0  (fire/read db path auth)
