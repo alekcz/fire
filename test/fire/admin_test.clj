@@ -662,7 +662,13 @@
 ;; green without it.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private web-api-key (delay (env :firebase-api-key)))
+(def ^:private web-api-key
+  ;; an unset github secret still renders into the env, as an empty string — so
+  ;; "is it set" has to mean blank-checked, not merely truthy. "" is truthy in
+  ;; clojure, which is how this first slipped through and called sign-in with
+  ;; an empty key.
+  (delay (let [k (env :firebase-api-key)]
+           (when-not (str/blank? k) k))))
 
 (defn- sign-in
   "Exchange an email and password for a real ID token, the way a client would."
