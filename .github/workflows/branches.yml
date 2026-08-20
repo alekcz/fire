@@ -89,6 +89,7 @@ jobs:
       env: 
         FIRE: ${{ secrets.FIRE }}
         VISION_API: ${{ secrets.VISION_API }}
+        FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         NPM_CONFIG_PREFIX: ~/.npm-global
         FIREBASE_DATABASE_EMULATOR_HOST: 127.0.0.1:9000

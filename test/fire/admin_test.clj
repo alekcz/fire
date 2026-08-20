@@ -2,6 +2,9 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [clj-uuid :as uuid]
+            [environ.core :refer [env]]
+            [org.httpkit.client :as client]
+            [org.httpkit.sni-client :as sni-client]
             [fire.admin :as admin]
             [fire.auth :as fire-auth]
             [fire.utils :as utils]))
@@ -642,6 +645,98 @@
 
     (testing "and a token for somebody who no longer exists fails closed"
       (is (false? (boolean (#'admin/still-good? {:uid (str (uuid/v1)) :iat (utils/now)} @auth nil)))))))
+
+
+;; ---------------------------------------------------------------------------
+;; Real Firebase ID tokens.
+;;
+;; Everything above proves these functions REJECT things. That's the wrong half
+;; to have proven for code whose job is deciding whether to trust a session, so
+;; this signs a user in properly and drives the accept path with a token
+;; firebase actually minted.
+;;
+;; Getting one needs the project's web api key, which the service account
+;; can't substitute for — it's a client-side credential (public by design;
+;; it's compiled into every firebase web app) and sign-in is a client
+;; operation. Absent the key these tests skip, so local runs and forks stay
+;; green without it.
+;; ---------------------------------------------------------------------------
+
+(def ^:private web-api-key (delay (env :firebase-api-key)))
+
+(defn- sign-in
+  "Exchange an email and password for a real ID token, the way a client would."
+  [email password]
+  (binding [org.httpkit.client/*default-client* sni-client/default-client]
+    (let [res @(client/request
+                 {:method :post
+                  :url (str "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key="
+                            @web-api-key)
+                  :headers {"Content-Type" "application/json"}
+                  :body (utils/encode {:email email :password password :returnSecureToken true})})]
+      (utils/decode (:body res)))))
+
+(deftest real-id-token-test
+  (if-not @web-api-key
+    (println "\n  skipping real ID token tests: FIREBASE_API_KEY is not set\n")
+    (let [email (unique-email)
+          password "superDuperSecure"
+          prep (admin/create-user email password @auth)
+          uid (:uid prep)
+          project (:project-id @auth)
+          signed-in (sign-in email password)
+          id-token (:idToken signed-in)]
+      (try
+        (testing "the sign-in itself worked — otherwise nothing below means anything"
+          (is (nil? (:error signed-in))
+              (str "sign-in failed, is Email/Password enabled on the project? " (pr-str (:error signed-in))))
+          (is (string? id-token)))
+
+        (when (string? id-token)
+          (testing "fire.auth verifies a real token against google's live certs"
+            ;; not the fixture cert: real kid, real rotation, real fetch
+            (let [res (fire-auth/validate-token project id-token)]
+              (is (some? res))
+              (is (= uid (:uid res)))
+              (is (= email (:email res)))
+              ;; no second factor was presented, and the fail-closed contract
+              ;; says that reads as nil rather than as absent
+              (is (contains? res :sign_in_second_factor))
+              (is (nil? (:sign_in_second_factor res)))))
+
+          (testing "and the admin variant agrees while the account is in good standing"
+            (let [res (admin/validate-token project id-token @auth)]
+              (is (some? res))
+              (is (= uid (:uid res)))))
+
+          (testing "a session cookie can be minted from it and verified back"
+            (let [cookie (admin/create-session-cookie id-token @auth)]
+              (is (string? cookie) (str "create-session-cookie: " (pr-str cookie)))
+              (when (string? cookie)
+                (let [res (fire-auth/validate-session-cookie project cookie)]
+                  (is (some? res))
+                  (is (= uid (:uid res))))
+                (is (some? (admin/validate-session-cookie project cookie @auth)))
+                ;; the two kinds still don't verify as each other
+                (is (nil? (fire-auth/validate-token project cookie)))
+                (is (nil? (fire-auth/validate-session-cookie project id-token))))))
+
+          (testing "revoking is exactly the difference between the two validate-tokens"
+            ;; validSince is stamped in whole seconds, so let the clock move past
+            ;; the token's iat before revoking or the comparison is a coin flip
+            (Thread/sleep 1500)
+            (admin/revoke-refresh-tokens uid @auth)
+            ;; signature and expiry are untouched, so the credential-free check
+            ;; still passes — this is the hour-long window it cannot see
+            (is (some? (fire-auth/validate-token project id-token)))
+            ;; while the admin check, which reads validSince, now refuses
+            (is (nil? (admin/validate-token project id-token @auth))))
+
+          (testing "and a disabled account is refused too"
+            (admin/disable-user uid @auth)
+            (is (nil? (admin/validate-token project id-token @auth)))))
+
+        (finally (admin/delete-user uid @auth))))))
 
 (deftest delete-user-test
   (testing "deleting a user returns nil, and deleting a stranger is an error"
