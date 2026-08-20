@@ -2,13 +2,52 @@ name: branches
 
 on:
   push:
-    branches: ['!master']
+    # a lone negative pattern matches nothing, so the previous ['!master']
+    # meant this workflow never ran at all. branches-ignore is the form that
+    # actually excludes master while matching everything else.
+    branches-ignore: [master]
 
 jobs:
-  build:
+  offline:
+    name: Offline tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '11'
+
+    - name: Cache deps
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('project.clj') }}
+        restore-keys: |
+              ${{ runner.os }}-maven-
+
+    # no secrets, no emulator, no network: everything that can be checked
+    # without real firebase credentials, so a fork or a branch pushed before
+    # secrets exist still gets a signal.
+    - name: Run offline tests
+      run: lein test :offline
+
+  full:
+    name: Full test suite
+    needs: offline
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache deps
+      uses: actions/cache@v4
+      id: cache-deps
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('project.clj') }}
+        restore-keys: |
+              ${{ runner.os }}-maven-
 
     - name: Cache emulator
       uses: actions/cache@v4

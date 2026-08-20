@@ -31,7 +31,7 @@
           token (:token auth)]
       (is (not (str/blank? token))))))
 
-(deftest non-existent-token-test
+(deftest ^:offline non-existent-token-test
   (testing "Tests non-existent token"
     (let [auth (fire-auth/create-token :non-existent-key)]
       (is (= {:env :non-existent-key} auth)))))
@@ -141,7 +141,7 @@ qwEFwqRUFo+nrwDhrCmruQ==
    :sub "uid-123" :email "person@example.com" :email_verified true
    :auth_time now :iat now :exp (+ now 3600)})
 
-(deftest validate-token-round-trip-test
+(deftest ^:offline validate-token-round-trip-test
   (with-fixture-cert
     (fn []
       (let [now    (utils/now)
@@ -167,13 +167,13 @@ qwEFwqRUFo+nrwDhrCmruQ==
           (is (nil? (fire-auth/validate-token "test-project"
                       (sign-fixture-token (assoc claims :exp (- now 10)))))))))))
 
-(deftest validate-token-fails-closed-on-garbage-test
+(deftest ^:offline validate-token-fails-closed-on-garbage-test
   (testing "malformed input never throws — always nil"
     (is (nil? (fire-auth/validate-token "test-project" "not.a.jwt")))
     (is (nil? (fire-auth/validate-token "test-project" "")))
     (is (nil? (fire-auth/validate-token "test-project" "a.b")))))
 
-(deftest cert->public-key-test
+(deftest ^:offline cert->public-key-test
   (testing "parses a real PEM X.509 certificate into an RSA PublicKey"
     (let [pubkey (fire-auth/cert->public-key fixture-cert)]
       (is (= "RSA" (.getAlgorithm pubkey))))))
@@ -197,7 +197,7 @@ qwEFwqRUFo+nrwDhrCmruQ==
                            :sign_in_provider "password"}
                           extra)))
 
-(deftest second-factor-claims-test
+(deftest ^:offline second-factor-claims-test
   (with-fixture-cert
     (fn []
       (let [now (utils/now)
@@ -240,7 +240,7 @@ qwEFwqRUFo+nrwDhrCmruQ==
             ;; every raw claim still resolves to what it did before the merge
             (is (= (select-keys totp (keys totp)) (select-keys res (keys totp))))))))))
 
-(deftest format-result-test
+(deftest ^:offline format-result-test
   (testing "format-result flattens the :firebase block and nothing else"
     (let [now (utils/now)
           claims (claims-with now {:sign_in_second_factor "totp" :second_factor_identifier "enrollment-1"})
@@ -273,7 +273,7 @@ qwEFwqRUFo+nrwDhrCmruQ==
          :user_id "uid-123"
          :firebase {:sign_in_provider "password" :sign_in_second_factor "totp"}))
 
-(deftest validate-session-cookie-test
+(deftest ^:offline validate-session-cookie-test
   (with-fixture-cert
     (fn []
       (let [now (utils/now)

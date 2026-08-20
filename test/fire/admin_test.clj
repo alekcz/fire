@@ -37,7 +37,7 @@
    :validSince "1700000000"
    :tenantId "tenant-1"})
 
-(deftest convert-user-record-test
+(deftest ^:offline convert-user-record-test
   (testing "an identity toolkit account maps onto fire's user map"
     (is (= {:email "person@example.com"
             :email-verified true
@@ -81,7 +81,7 @@
   (testing "nil in, nil out"
     (is (nil? (#'admin/convert-user-record nil)))))
 
-(deftest factor-test
+(deftest ^:offline factor-test
   (testing "the factor type is inferred from which info block is present"
     (is (= :totp (:type (#'admin/->factor {:mfaEnrollmentId "e1" :totpInfo {}}))))
     (is (= :phone (:type (#'admin/->factor {:mfaEnrollmentId "e2" :phoneInfo "+27123456789"}))))
@@ -89,7 +89,7 @@
   (testing "a phone factor carries its number through"
     (is (= "+27123456789" (:phone-number (#'admin/->factor {:mfaEnrollmentId "e2" :phoneInfo "+27123456789"}))))))
 
-(deftest endpoint-test
+(deftest ^:offline endpoint-test
   (testing "urls are project scoped"
     (is (= "https://identitytoolkit.googleapis.com/v1/projects/p/accounts"
            (#'admin/endpoint "/accounts" {:project-id "p"} nil))))
@@ -103,7 +103,7 @@
     (is (= "https://identitytoolkit.googleapis.com/v1/projects/other/accounts"
            (#'admin/endpoint "/accounts" {:project-id "p"} {:project-id "other"})))))
 
-(deftest update-body-test
+(deftest ^:offline update-body-test
   (testing "fields translate to the api's camelCase names"
     (is (= {:email "a@b.com" :password "secret"}
            (#'admin/->update-body {:email "a@b.com" :password "secret"})))
@@ -130,7 +130,7 @@
     (is (= {:deleteProvider ["google.com"]} (#'admin/->update-body {:unlink-providers ["google.com"]})))
     (is (= {:mfa {:enrollments []}} (#'admin/->update-body {:mfa-enrollments []})))))
 
-(deftest claims-problem-test
+(deftest ^:offline claims-problem-test
   (testing "ordinary claims are fine"
     (is (nil? (#'admin/claims-problem nil)))
     (is (nil? (#'admin/claims-problem {})))
@@ -144,7 +144,7 @@
   (testing "claims have to be a map at all"
     (is (= "INVALID_CLAIMS" (#'admin/claims-problem "not a map")))))
 
-(deftest e164-test
+(deftest ^:offline e164-test
   (testing "phone numbers must be E.164, as firebase requires"
     (is (#'admin/e164? "+27123456789"))
     (is (#'admin/e164? "+15555550100"))
@@ -154,20 +154,20 @@
     (is (not (#'admin/e164? "not a phone number")))
     (is (not (#'admin/e164? nil)))))
 
-(deftest valid-url-test
+(deftest ^:offline valid-url-test
   (testing "photo urls must be absolute, scheme and all"
     (is (#'admin/valid-url? "https://www.domain.com/pic.jpg"))
     (is (not (#'admin/valid-url? "domain.com/pic.jpg")))
     (is (not (#'admin/valid-url? "")))
     (is (not (#'admin/valid-url? nil)))))
 
-(deftest error-message-test
+(deftest ^:offline error-message-test
   (testing "the message is dug out of an identity toolkit error body"
     (is (= "EMAIL_EXISTS" (#'admin/error-message {:error {:code 400 :message "EMAIL_EXISTS"}})))
     (is (= "boom" (#'admin/error-message {:error "boom"})))
     (is (= "Unknown error" (#'admin/error-message nil)))))
 
-(deftest local-guards-test
+(deftest ^:offline local-guards-test
   (testing "bad arguments are refused without a round trip, in charmander's error shape"
     ;; nil auth proves the point: if any of these reached the network they would
     ;; fail differently (and slowly) rather than returning these exact messages
@@ -200,7 +200,7 @@
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 60})))
     (is (= {:error true :error-data "INVALID_DURATION"} (admin/create-session-cookie "token" nil {:valid-duration 2000000})))))
 
-(deftest validate-token-fails-closed-test
+(deftest ^:offline validate-token-fails-closed-test
   (testing "a token that doesn't survive fire.auth never reaches the account lookup"
     ;; no network and no credentials involved: the signature check rejects first
     (is (nil? (admin/validate-token "test-project" "not.a.jwt" nil)))
