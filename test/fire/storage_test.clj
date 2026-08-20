@@ -117,5 +117,5 @@
       (let [resolved (#'store/default-bucket project (:token auth))]
         (is (contains? (set (#'store/bucket-candidates project)) resolved))
         ;; cached, so the second call doesn't probe again
-        (is (= resolved (get @#'store/resolved-buckets project)))
+        (is (= resolved (get @@#'store/resolved-buckets project)))
         (is (= resolved (#'store/default-bucket project (:token auth))))))))
