@@ -583,7 +583,13 @@
       (is (:error (admin/get-user "uid" @auth nowhere)))
       (is (:error (admin/get-users {:uids ["uid"]} @auth nowhere)))
       (is (:error (admin/list-users @auth nowhere)))
-      (is (:error (admin/list-all-users @auth nowhere)))
+      ;; list-all-users is lazy, so merely calling it does nothing at all —
+      ;; the failure only surfaces when something consumes it, and then as a
+      ;; throw rather than an error map
+      (is (some? (admin/list-all-users @auth nowhere)))
+      (is (thrown? clojure.lang.ExceptionInfo (doall (admin/list-all-users @auth nowhere))))
+      (is (thrown? clojure.lang.ExceptionInfo
+            (into [] (admin/search-users (map identity) @auth nowhere))))
       (is (:error (admin/list-user-factors "uid" @auth nowhere)))
       (is (:error (admin/delete-users ["uid"] @auth nowhere)))
       (is (:error (admin/unenroll-user-factor "uid" "enrollment" @auth nowhere)))
