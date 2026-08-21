@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.7.0-RC2] - 2026-08-21
 ### Added
 - Project configuration in `fire.admin`: `get-project-config`,
   `get-mfa-config`, `set-mfa-config`, `enable-totp-mfa` and `disable-mfa`.
