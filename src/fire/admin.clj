@@ -31,6 +31,14 @@
 
 (def ^:private projects-root "https://identitytoolkit.googleapis.com/v1/projects")
 
+;; project configuration lives on a different version of the same api. the
+;; identityplatform.googleapis.com host serves it too, but has to be enabled on
+;; the project separately — this host is already enabled wherever fire works at
+;; all, and the identitytoolkit scope already covers it.
+(def ^:private admin-root "https://identitytoolkit.googleapis.com/admin/v2/projects")
+
+(def ^:private mfa-states #{:disabled :enabled :mandatory})
+
 (def ^:private custom-token-audience
   "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit")
 
@@ -92,15 +100,15 @@
 (defn- endpoint
   "Identity toolkit urls are project scoped, and tenant scoped on top of that
    when a tenant is named."
-  [path auth options]
-  (str projects-root "/" (or (:project-id options) (:project-id auth))
+  [root path auth options]
+  (str root "/" (or (:project-id options) (:project-id auth))
        (when (:tenant-id options) (str "/tenants/" (:tenant-id options)))
        path))
 
 (defn- request
   "Call an Identity Toolkit admin endpoint for the project behind `auth`.
    Returns the decoded body on success and an error map on any failure."
-  [{:keys [method path body query-params]} auth options]
+  [{:keys [method path body query-params root]} auth options]
   (try
     (let [token (when (:expiry auth)
                   (if (< (utils/now) (:expiry auth))
@@ -108,7 +116,7 @@
                     (-> auth :env fire-auth/create-token :token)))
           request-options (reduce utils/recursive-merge
                             [{:method (or method :post)}
-                             {:url (endpoint path auth options)}
+                             {:url (endpoint (or root projects-root) path auth options)}
                              {:headers {"Content-Type" "application/json"
                                         "Connection" "keep-alive"}}
                              {:keepalive 600000}
@@ -579,6 +587,121 @@
    (if (str/blank? new-email)
      (err "MISSING_NEW_EMAIL")
      (oob-link "VERIFY_AND_CHANGE_EMAIL" email auth options {:newEmail new-email}))))
+
+; project configuration
+;
+; Turning MFA on is two nested switches, which is the part that catches people
+; out: a project-level state, and a per-provider state underneath it. TOTP can
+; sit there ENABLED while the parent is DISABLED, in which case nothing works
+; and nothing says why.
+
+(defn- ->mfa-config
+  "The MFA half of a project config, in fire's shape."
+  [mfa]
+  (let [totp (first (filter :totpProviderConfig (:providerConfigs mfa)))]
+    {:state (some-> (:state mfa) str/lower-case keyword)
+     :totp {:state (some-> (:state totp) str/lower-case keyword)
+            ;; how many 30s windows either side of now a code is accepted.
+            ;; google defaults to 5, which is a forgiving +/- 2.5 minutes
+            :adjacent-intervals (-> totp :totpProviderConfig :adjacentIntervals)}}))
+
+(defn- ->project-config [config]
+  (let [sign-in (:signIn config)]
+    {:mfa (->mfa-config (:mfa config))
+     :authorized-domains (vec (:authorizedDomains config))
+     ;; deliberately partial: the raw config also carries
+     ;; signIn.hashConfig.signerKey, the password hashing secret. fire has no
+     ;; use for it and it should not be sitting in a log or a repl history.
+     :sign-in {:email (boolean (-> sign-in :email :enabled))
+               :phone-number (boolean (-> sign-in :phoneNumber :enabled))
+               :anonymous (boolean (-> sign-in :anonymous :enabled))
+               :allow-duplicate-emails (boolean (:allowDuplicateEmails sign-in))}}))
+
+(defn get-project-config
+  "The project's authentication configuration — which sign-in methods are on,
+   which domains are authorised, and the MFA settings.
+
+   The password hashing secret in the raw response is left out; everything
+   else is passed through."
+  ([auth] (get-project-config auth nil))
+  ([auth options]
+   (let [res (request {:method :get :root admin-root :path "/config"} auth options)]
+     (if (:error res) res (->project-config res)))))
+
+(defn get-mfa-config
+  "Just the MFA half of get-project-config:
+   {:state :disabled|:enabled|:mandatory
+    :totp {:state ... :adjacent-intervals n}}"
+  ([auth] (get-mfa-config auth nil))
+  ([auth options]
+   (let [res (get-project-config auth options)]
+     (if (:error res) res (:mfa res)))))
+
+(defn set-mfa-config
+  "Set the project's MFA configuration. `config` takes :state and :totp, and
+   whichever you leave out is left alone — the update mask is built from the
+   keys you actually pass, so this never round-trips the rest of the project
+   config and can't clobber a setting you didn't mention.
+
+     (set-mfa-config {:state :enabled} auth)
+     (set-mfa-config {:totp {:state :enabled :adjacent-intervals 3}} auth)
+
+   :state is the parent switch and the one people miss:
+     :disabled  — nobody can enrol; second factor claims are always nil
+     :enabled   — users MAY enrol; anyone who hasn't signs in exactly as before
+     :mandatory — users MUST enrol; everyone without a factor is locked out
+
+   :mandatory locks out every user who has not already enrolled, so reach for
+   :enabled and let your own gate decide who has to have it. Enrolment has to
+   lead enforcement, not follow it."
+  ([config auth] (set-mfa-config config auth nil))
+  ([config auth options]
+   (let [{:keys [state totp]} config
+         totp-state (:state totp)]
+     (cond
+       (and (nil? state) (nil? totp)) (err "NOTHING_TO_UPDATE")
+       (and state (not (mfa-states state))) (err (str "INVALID_MFA_STATE: " state))
+       ;; :mandatory is a project-level notion; a provider is simply on or off
+       (and totp (not (#{:enabled :disabled} totp-state))) (err (str "INVALID_PROVIDER_STATE: " totp-state))
+       :else
+       (let [body (cond-> {}
+                    state (assoc :state (-> state name str/upper-case))
+                    totp (assoc :providerConfigs
+                                [(cond-> {:state (-> totp-state name str/upper-case)}
+                                   (:adjacent-intervals totp)
+                                   (assoc :totpProviderConfig
+                                          {:adjacentIntervals (:adjacent-intervals totp)}))]))
+             mask (str/join "," (cond-> []
+                                  state (conj "mfa.state")
+                                  totp (conj "mfa.providerConfigs")))
+             res (request {:method :patch
+                           :root admin-root
+                           :path "/config"
+                           :query-params {:updateMask mask}
+                           :body {:mfa body}}
+                          auth options)]
+         (if (:error res) res (->project-config res)))))))
+
+(defn enable-totp-mfa
+  "Turn on TOTP second factors in one call: the project-level switch and the
+   TOTP provider together, which is the pair that has to be set for anything
+   to work.
+
+   Uses :enabled rather than :mandatory, so nobody's sign-in changes until
+   they choose to enrol. `options` may carry :adjacent-intervals."
+  ([auth] (enable-totp-mfa auth nil))
+  ([auth options]
+   (set-mfa-config {:state :enabled
+                    :totp (cond-> {:state :enabled}
+                            (:adjacent-intervals options)
+                            (assoc :adjacent-intervals (:adjacent-intervals options)))}
+                   auth options)))
+
+(defn disable-mfa
+  "Turn multi-factor authentication off at the project level. Enrolled factors
+   are not deleted — flipping it back to :enabled restores them."
+  ([auth] (disable-mfa auth nil))
+  ([auth options] (set-mfa-config {:state :disabled} auth options)))
 
 ; minting and checking credentials
 

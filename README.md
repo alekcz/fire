@@ -347,6 +347,62 @@ Unenrollment is security-sensitive and worth audit logging on the way past —
 fire doesn't log it for you. All of this needs Identity Platform; on the legacy
 Firebase Auth tier `:mfa-info` is simply always empty.
 
+#### Project configuration and turning MFA on
+
+Enabling MFA is two nested switches, and setting only the inner one is a silent
+no-op — TOTP reads as enabled while nothing works and nothing tells you why.
+So there's one call that sets both:
+
+```clojure
+(admin/enable-totp-mfa auth)
+```
+
+That uses `:enabled`, not `:mandatory` — nobody's sign-in changes until they
+choose to enrol. To inspect or set the pieces individually:
+
+```clojure
+(admin/get-mfa-config auth)
+; => {:state :enabled :totp {:state :enabled :adjacent-intervals 5}}
+
+(admin/set-mfa-config {:state :enabled} auth)
+(admin/set-mfa-config {:totp {:state :enabled :adjacent-intervals 3}} auth)
+(admin/disable-mfa auth)
+```
+
+Whichever key you leave out is left alone — the update mask is built from the
+keys you pass, so this never round-trips the rest of your project config and
+can't clobber a setting you didn't mention.
+
+`:state` is the project-level switch:
+
+| `:state` | Effect on a user with no enrolled factor |
+| --- | --- |
+| `:disabled` | can't enrol; second factor claims are always nil |
+| `:enabled` | signs in exactly as before; **may** enrol |
+| `:mandatory` | **locked out** until they enrol |
+
+`:mandatory` locks out everyone who hasn't already enrolled, so prefer
+`:enabled` and let your own gate decide who must have a second factor.
+Enrolment has to lead enforcement, not follow it.
+
+`:adjacent-intervals` is how many 30-second windows either side of now a TOTP
+code is accepted. Google's default of 5 means roughly ±2.5 minutes — forgiving
+of clock drift, and wider than most people assume.
+
+The whole project config is readable too:
+
+```clojure
+(admin/get-project-config auth)
+; => {:mfa {...}
+;     :authorized-domains ["localhost" "your-project.firebaseapp.com"]
+;     :sign-in {:email true :phone-number false :anonymous false
+;               :allow-duplicate-emails false}}
+```
+
+Fire leaves out one field Firebase returns: `signIn.hashConfig.signerKey`, the
+password hashing secret. It has no use here and shouldn't end up in a log or a
+repl history.
+
 #### Custom tokens and session cookies
 
 A custom token is how you let your own system decide who somebody is — an SSO

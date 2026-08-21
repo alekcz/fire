@@ -92,19 +92,27 @@
   (testing "a phone factor carries its number through"
     (is (= "+27123456789" (:phone-number (#'admin/->factor {:mfaEnrollmentId "e2" :phoneInfo "+27123456789"}))))))
 
+(def ^:private v1 "https://identitytoolkit.googleapis.com/v1/projects")
+(def ^:private v2 "https://identitytoolkit.googleapis.com/admin/v2/projects")
+
 (deftest ^:offline endpoint-test
   (testing "urls are project scoped"
-    (is (= "https://identitytoolkit.googleapis.com/v1/projects/p/accounts"
-           (#'admin/endpoint "/accounts" {:project-id "p"} nil))))
+    (is (= (str v1 "/p/accounts")
+           (#'admin/endpoint v1 "/accounts" {:project-id "p"} nil))))
   (testing "and tenant scoped on top of that when a tenant is named"
-    (is (= "https://identitytoolkit.googleapis.com/v1/projects/p/tenants/t/accounts:lookup"
-           (#'admin/endpoint "/accounts:lookup" {:project-id "p"} {:tenant-id "t"}))))
+    (is (= (str v1 "/p/tenants/t/accounts:lookup")
+           (#'admin/endpoint v1 "/accounts:lookup" {:project-id "p"} {:tenant-id "t"}))))
   (testing "the session cookie endpoint hangs off the project, not off accounts"
-    (is (= "https://identitytoolkit.googleapis.com/v1/projects/p:createSessionCookie"
-           (#'admin/endpoint ":createSessionCookie" {:project-id "p"} nil))))
+    (is (= (str v1 "/p:createSessionCookie")
+           (#'admin/endpoint v1 ":createSessionCookie" {:project-id "p"} nil))))
+  (testing "project config lives on the admin v2 root, same host and scope"
+    (is (= (str v2 "/p/config")
+           (#'admin/endpoint v2 "/config" {:project-id "p"} nil)))
+    (is (= (str v2 "/p/tenants/t/config")
+           (#'admin/endpoint v2 "/config" {:project-id "p"} {:tenant-id "t"}))))
   (testing "options override the project the credentials name"
-    (is (= "https://identitytoolkit.googleapis.com/v1/projects/other/accounts"
-           (#'admin/endpoint "/accounts" {:project-id "p"} {:project-id "other"})))))
+    (is (= (str v1 "/other/accounts")
+           (#'admin/endpoint v1 "/accounts" {:project-id "p"} {:project-id "other"})))))
 
 (deftest ^:offline update-body-test
   (testing "fields translate to the api's camelCase names"
@@ -813,3 +821,61 @@
       (is (nil? (admin/delete-users [(:uid a) (:uid b)] @auth)))
       (is (:error (admin/get-user (:uid a) @auth)))
       (is (:error (admin/get-user (:uid b) @auth))))))
+
+;; ---------------------------------------------------------------------------
+;; Project configuration. Turning MFA on is two nested switches — a project
+;; level state and a per-provider one under it — and the failure mode when you
+;; set only the inner one is silence: TOTP reads as ENABLED while nothing works.
+;; ---------------------------------------------------------------------------
+
+(deftest ^:offline mfa-config-shape-test
+  (testing "the wire shape maps onto fire's"
+    (is (= {:state :disabled
+            :totp {:state :enabled :adjacent-intervals 5}}
+           (#'admin/->mfa-config
+             {:state "DISABLED"
+              :providerConfigs [{:state "ENABLED" :totpProviderConfig {:adjacentIntervals 5}}]}))))
+
+  (testing "a project with no MFA configured at all"
+    (is (= {:state nil :totp {:state nil :adjacent-intervals nil}}
+           (#'admin/->mfa-config nil))))
+
+  (testing "the password hashing secret is never passed through"
+    (let [shaped (#'admin/->project-config
+                   {:signIn {:email {:enabled true}
+                             :hashConfig {:signerKey "SECRET" :saltSeparator "Bw=="}}
+                    :authorizedDomains ["localhost"]
+                    :mfa {:state "ENABLED"}})]
+      (is (true? (-> shaped :sign-in :email)))
+      (is (= ["localhost"] (:authorized-domains shaped)))
+      (is (not (str/includes? (pr-str shaped) "SECRET"))))))
+
+(deftest ^:offline set-mfa-config-guards-test
+  (testing "an empty update is refused rather than sent"
+    (is (= {:error true :error-data "NOTHING_TO_UPDATE"} (admin/set-mfa-config {} nil))))
+  (testing "only real states are accepted"
+    (is (str/starts-with? (:error-data (admin/set-mfa-config {:state :on} nil)) "INVALID_MFA_STATE"))
+    ;; :mandatory is a project-level notion, not a per-provider one
+    (is (str/starts-with? (:error-data (admin/set-mfa-config {:totp {:state :mandatory}} nil))
+                          "INVALID_PROVIDER_STATE"))))
+
+(deftest project-config-test
+  (testing "reading the project's auth configuration"
+    (let [config (admin/get-project-config @auth)]
+      (is (not (:error config)))
+      (is (vector? (:authorized-domains config)))
+      (is (contains? config :sign-in))
+      (is (contains? (:mfa config) :state))
+      ;; whatever else it holds, the hashing secret isn't in it
+      (is (not (str/includes? (pr-str config) "signerKey")))
+      (is (= (:mfa config) (admin/get-mfa-config @auth)))))
+
+  (testing "writing the current state back over itself"
+    ;; exercises the PATCH path without changing anything: whatever the project
+    ;; is set to now is exactly what gets written. a test that flipped MFA on a
+    ;; real project could lock people out if it died halfway
+    (let [before (admin/get-mfa-config @auth)]
+      (when (:state before)
+        (let [after (admin/set-mfa-config {:state (:state before)} @auth)]
+          (is (not (:error after)))
+          (is (= (:state before) (-> after :mfa :state))))))))

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Enable TOTP MFA on a Firebase project via the Identity Platform admin API.
+#
+# The project must already be upgraded to Firebase Authentication with
+# Identity Platform (Firebase console -> Authentication -> Settings ->
+# Upgrade), which needs Blaze billing. This call then turns the TOTP
+# provider on — the piece the Firebase console UI does not always expose.
+#
+# Usage:
+#   ./scripts/enable-totp-mfa.sh <project-id> [adjacent-intervals]
+#   ./scripts/enable-totp-mfa.sh --status <project-id>
+#
+# Examples:
+#   ./scripts/enable-totp-mfa.sh stub-hq
+#   ./scripts/enable-totp-mfa.sh --status stub-hq
+#
+# Requires gcloud authenticated as an owner/editor of the project
+# (gcloud auth login).
+set -euo pipefail
+
+usage() {
+  grep '^#' "$0" | sed 's/^# \{0,1\}//'
+  exit 1
+}
+
+status_only=false
+if [[ "${1:-}" == "--status" ]]; then
+  status_only=true
+  shift
+fi
+
+project_id="${1:-}"
+[[ -z "$project_id" ]] && usage
+
+# ±intervals of 30s the verifier accepts, absorbing device clock skew.
+# 5 is the value Firebase's own docs use.
+adjacent_intervals="${2:-5}"
+
+token="$(gcloud auth print-access-token)"
+config_url="https://identitytoolkit.googleapis.com/admin/v2/projects/${project_id}/config"
+
+if $status_only; then
+  curl -sS "$config_url" -H "Authorization: Bearer ${token}" |
+    python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("mfa", {}), indent=2))'
+  exit 0
+fi
+
+curl -sS -X PATCH "${config_url}?updateMask=mfa" \
+  -H "Authorization: Bearer ${token}" \
+  -H "Content-Type: application/json" \
+  -d "{\"mfa\":{\"providerConfigs\":[{\"state\":\"ENABLED\",\"totpProviderConfig\":{\"adjacentIntervals\":${adjacent_intervals}}}]}}" |
+  python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("mfa", {}), indent=2))'
+
+echo "TOTP MFA enabled on ${project_id} (adjacentIntervals=${adjacent_intervals})."
