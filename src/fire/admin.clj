@@ -637,6 +637,23 @@
    (let [res (get-project-config auth options)]
      (if (:error res) res (:mfa res)))))
 
+(defn- ->mfa-update
+  "The request body and its update mask, built from only the keys given. The
+   mask is what keeps a write from naming — and so from clobbering — a field
+   the caller never mentioned, which matters here because the surrounding
+   config carries the password hashing secret."
+  [{:keys [state totp]}]
+  {:body (cond-> {}
+           state (assoc :state (-> state name str/upper-case))
+           totp (assoc :providerConfigs
+                       [(cond-> {:state (-> totp :state name str/upper-case)}
+                          (:adjacent-intervals totp)
+                          (assoc :totpProviderConfig
+                                 {:adjacentIntervals (:adjacent-intervals totp)}))]))
+   :mask (str/join "," (cond-> []
+                         state (conj "mfa.state")
+                         totp (conj "mfa.providerConfigs")))})
+
 (defn set-mfa-config
   "Set the project's MFA configuration. `config` takes :state and :totp, and
    whichever you leave out is left alone — the update mask is built from the
@@ -664,16 +681,7 @@
        ;; :mandatory is a project-level notion; a provider is simply on or off
        (and totp (not (#{:enabled :disabled} totp-state))) (err (str "INVALID_PROVIDER_STATE: " totp-state))
        :else
-       (let [body (cond-> {}
-                    state (assoc :state (-> state name str/upper-case))
-                    totp (assoc :providerConfigs
-                                [(cond-> {:state (-> totp-state name str/upper-case)}
-                                   (:adjacent-intervals totp)
-                                   (assoc :totpProviderConfig
-                                          {:adjacentIntervals (:adjacent-intervals totp)}))]))
-             mask (str/join "," (cond-> []
-                                  state (conj "mfa.state")
-                                  totp (conj "mfa.providerConfigs")))
+       (let [{:keys [body mask]} (->mfa-update config)
              res (request {:method :patch
                            :root admin-root
                            :path "/config"

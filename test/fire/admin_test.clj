@@ -668,7 +668,14 @@
       (is (:error (admin/list-user-factors "uid" @auth nowhere)))
       (is (:error (admin/delete-users ["uid"] @auth nowhere)))
       (is (:error (admin/unenroll-user-factor "uid" "enrollment" @auth nowhere)))
-      (is (:error (admin/create-session-cookie "token" @auth nowhere))))))
+      (is (:error (admin/create-session-cookie "token" @auth nowhere)))
+      ;; the config writers too — driven against a project that isn't there, so
+      ;; the wrappers are exercised without touching a real project's MFA state
+      (is (:error (admin/get-project-config @auth nowhere)))
+      (is (:error (admin/get-mfa-config @auth nowhere)))
+      (is (:error (admin/enable-totp-mfa @auth nowhere)))
+      (is (:error (admin/enable-totp-mfa @auth (assoc nowhere :adjacent-intervals 3))))
+      (is (:error (admin/disable-mfa @auth nowhere))))))
 
 (deftest unlink-provider-test
   (testing "unlinking a provider drops that identity but keeps the account"
@@ -849,6 +856,20 @@
       (is (true? (-> shaped :sign-in :email)))
       (is (= ["localhost"] (:authorized-domains shaped)))
       (is (not (str/includes? (pr-str shaped) "SECRET"))))))
+
+(deftest ^:offline mfa-update-test
+  (testing "the mask names only the keys actually given"
+    (is (= {:body {:state "ENABLED"} :mask "mfa.state"}
+           (#'admin/->mfa-update {:state :enabled})))
+    (is (= {:body {:providerConfigs [{:state "ENABLED" :totpProviderConfig {:adjacentIntervals 3}}]}
+            :mask "mfa.providerConfigs"}
+           (#'admin/->mfa-update {:totp {:state :enabled :adjacent-intervals 3}})))
+    (is (= "mfa.state,mfa.providerConfigs"
+           (:mask (#'admin/->mfa-update {:state :enabled :totp {:state :enabled}})))))
+
+  (testing "an omitted interval leaves google's default alone"
+    (is (= {:body {:providerConfigs [{:state "DISABLED"}]} :mask "mfa.providerConfigs"}
+           (#'admin/->mfa-update {:totp {:state :disabled}})))))
 
 (deftest ^:offline set-mfa-config-guards-test
   (testing "an empty update is refused rather than sent"
