@@ -17,7 +17,14 @@
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :javac-options ["--release" "8" "-g"]
   :global-vars {*warn-on-reflection* true}
-  :main fire.graal
+  ;; ^:skip-aot keeps `lein jar` from compiling anything: a library artifact
+  ;; should ship .clj source and let the consumer's own clojure compile it.
+  ;; AOT here would pin the clojure version fire was built against, bake
+  ;; direct-linking into every consumer (so they couldn't redef or mock a fire
+  ;; fn), and drag compiled copies of our dependencies into their classpath.
+  ;; The native image is the one thing that genuinely needs AOT, so it gets it
+  ;; in the :uberjar profile below and nowhere else.
+  :main ^:skip-aot fire.graal
   :repl-options {:init-ns fire.core}
   ;; the tests split in two: those that need real firebase credentials, and
   ;; those that don't. `lein test :offline` runs only the second kind, which is
@@ -28,7 +35,8 @@
               :runner-opts {:test-warn-time 500
                             :fail-fast? false
                             :multithread? :namespaces}}
-  :profiles { :dev {:plugins [[lein-shell "0.5.0"]]
+  :profiles { :uberjar {:aot :all}
+              :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
@@ -36,7 +44,12 @@
                                      [metosin/malli "0.8.0"]
                                      [eftest/eftest "0.5.9"]]}}
   :aliases
-  {"native"
+  {;; always clean first. a stale target/classes from a previous uberjar or
+   ;; native build gets swept into `lein jar`, which is how compiled clojure
+   ;; and dependency classes ended up in a published artifact once.
+   "publish" ["do" "clean," "deploy" "clojars"]
+
+   "native"
    ["shell"
     "native-image" 
     "--report-unsupported-elements-at-runtime" 
