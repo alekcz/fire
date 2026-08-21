@@ -1,19 +1,21 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [0.7.0-RC2] - 2026-08-21
+## [0.7.0-RC3] - 2026-08-21
 ### Fixed
-- The published jar is source-only again. `lein jar` was sweeping whatever
-  happened to be in `target/classes` into the artifact, so a build run after a
-  `uberjar` or native-image build shipped AOT-compiled copies of Clojure
-  itself, cheshire, gniazdo, environ and clj_uuid — 2758 classes and 3.3MB,
-  where the library is 40KB of source. Those classes also carried
-  direct-linking, which would have stopped consumers redefining or mocking any
-  fire function. `:main` is now `^:skip-aot`, AOT is confined to the `:uberjar`
-  profile the native image needs, and a `lein publish` alias cleans first so a
-  stale `target/` can't leak into a release again. 0.7.0-RC1 on Clojars has
-  this problem; RC2 does not.
+- The published jar is source-only again, 3.3MB down to 40KB. `lein jar`
+  packages whatever is in `target/classes`, so a build run after an `uberjar`
+  or native-image build swept AOT-compiled copies of Clojure itself, cheshire,
+  gniazdo, environ and clj_uuid into the artifact — 2758 classes, where the
+  library is ten files of source. Those classes also carried direct-linking,
+  which would have stopped consumers redefining or mocking any fire function.
+  `:main` is now `^:skip-aot`, AOT is confined to the `:uberjar` profile the
+  native image needs, and a `lein publish` alias cleans first so a stale
+  `target/` cannot leak into a release again.
 
+  **Both 0.7.0-RC1 and 0.7.0-RC2 on Clojars carry this problem — use RC3.**
+
+## [0.7.0-RC2] - 2026-08-21
 ### Added
 - Project configuration in `fire.admin`: `get-project-config`,
   `get-mfa-config`, `set-mfa-config`, `enable-totp-mfa` and `disable-mfa`.

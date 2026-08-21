@@ -15,7 +15,7 @@ For fire you will need to create a Realtime Database on Firebase and retrieve th
 
 ## Usage
 
-`[alekcz/fire "0.7.0-RC2"]`
+`[alekcz/fire "0.7.0-RC3"]`
 
 ### Interacting with Realtime Database
 
