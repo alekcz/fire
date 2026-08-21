@@ -1,6 +1,18 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Added
+- Project configuration in `fire.admin`: `get-project-config`,
+  `get-mfa-config`, `set-mfa-config`, `enable-totp-mfa` and `disable-mfa`.
+  Turning MFA on is two nested switches — a project-level state and a
+  per-provider one underneath — and setting only the inner one is a silent
+  no-op, so `enable-totp-mfa` sets both. Writes use an update mask built from
+  the keys passed, so they never round-trip the rest of the project config.
+  Served from the admin/v2 path on `identitytoolkit.googleapis.com`, which
+  needs no additional API enabled and is already covered by fire's scopes.
+  `get-project-config` omits `signIn.hashConfig.signerKey`.
+
 ## [0.7.0-RC1] - 2026-08-20
 ### Added
 - `fire.admin` — user management against the Identity Toolkit REST API. No
