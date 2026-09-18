@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # Enable TOTP MFA on a Firebase project via the Identity Platform admin API.
 #
+# From Clojure, fire.admin/enable-totp-mfa and fire.admin/get-mfa-config do
+# this same thing with a service account. This script is the gcloud-only
+# fallback for a project that has no service account yet.
+#
 # The project must already be upgraded to Firebase Authentication with
 # Identity Platform (Firebase console -> Authentication -> Settings ->
 # Upgrade), which needs Blaze billing. This call then turns the TOTP
 # provider on — the piece the Firebase console UI does not always expose.
 #
 # Usage:
-#   ./totp.sh status <project-id>          # read-only; what is actually set
-#   ./totp.sh enable <project-id> [n]      # n = adjacent intervals, default 5
+#   ./scripts/enable-totp-mfa.sh status <project-id>          # read-only; what is actually set
+#   ./scripts/enable-totp-mfa.sh enable <project-id> [n]      # n = adjacent intervals, default 5
 #
 # Requires gcloud authenticated as an owner/editor of the project.
 set -euo pipefail

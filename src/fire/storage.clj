@@ -22,13 +22,12 @@
    (str project-id ".appspot.com")])
 
 (defn- bucket-exists? [bucket token]
-  (binding [org.httpkit.client/*default-client* sni-client]
-    (let [res @(client/request (cond-> {:method :get
-                                        :url (str utils/storage-download-root "/" bucket)}
-                                 token (assoc :headers {"Authorization" (str "Bearer " token)})))]
-      ;; 404 is the only answer that definitely means "no such bucket"; a 401 or
-      ;; 403 means it's there and we simply can't read its metadata.
-      (not= 404 (:status res)))))
+  (let [res (utils/http! sni-client (cond-> {:method :get
+                                             :url (str utils/storage-download-root "/" bucket)}
+                                      token (assoc :headers {"Authorization" (str "Bearer " token)})))]
+    ;; 404 is the only answer that definitely means "no such bucket"; a 401 or
+    ;; 403 means it's there and we simply can't read its metadata.
+    (not= 404 (:status res))))
 
 (defn- default-bucket
   "The project's storage bucket, resolved once per project and cached."
@@ -49,10 +48,8 @@
 (defn request 
   "Request method used by other functions."
   [method domain url' mime data & [auth options]]
-    (let [token (when (:expiry auth) 
-                  (if (< (utils/now) (:expiry auth))
-                    (:token auth) 
-                    (-> auth :env auth/create-token :token)))
+    ;; a public bucket takes a nil auth, so a missing token is not refused here
+    (let [token (auth/token-for auth)
           bucket (or (:bucket options)
                      (default-bucket (or (:project-id options) (:project-id auth)) token))
           url (str domain "/" bucket url')
@@ -62,15 +59,13 @@
                               {:headers {"Connection" "keep-alive"}}
                               {:keepalive 600000}
                               (when mime {:headers {"Content-Type" mime}})
-                              (when auth {:headers {"Authorization" (str "Bearer " token)}})
+                              (when token {:headers {"Authorization" (str "Bearer " token)}})
                               (when-not (nil? data) {:body data})
                               (dissoc options :async)])
-          c sni-client]
-      (binding [org.httpkit.client/*default-client* c]
-        (let [response @(client/request request-options)
-              res (-> response :body)
-              error (:error response)]
-          (if error error res)))))
+          response (utils/http! sni-client request-options)
+          res (-> response :body)
+          error (:error response)]
+      (if error error res)))
 
 (defn clean [url]
  (URLEncoder/encode (str url "") "UTF-8"))

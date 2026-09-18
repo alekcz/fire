@@ -451,6 +451,110 @@ Generated rather than sent, so you can deliver them yourself.
 ; => nil, or {:error true :error-data "PARTIAL_FAILURE" :failures [...]}
 ```
 
+#### Second factors
+
+Enrolment is the client's job against Firebase — the secret never reaches
+your server and fire does not try to change that. What a server needs is the
+support-side half: seeing what a locked-out user has enrolled, and taking it
+off them so they can start over.
+
+```clojure
+(admin/list-user-factors "MjM0NTY3..." auth)
+; => [{:id "e1" :type :totp :display-name "Authenticator" :enrolled-at 1755000000000}]
+(admin/unenroll-user-factor "MjM0NTY3..." "e1" auth)   ; worth audit logging
+(admin/unenroll-all-user-factors "MjM0NTY3..." auth)
+```
+
+Whether a second factor was actually presented at sign-in is on the verified
+ID token, as `:sign_in_second_factor` — see *Verifying Firebase ID tokens*
+above. It is `nil` unless the project is on Identity Platform and MFA was
+used, and an enforcing gate must treat `nil` as a deny.
+
+#### Project MFA policy
+
+The project must be upgraded to Firebase Authentication with Identity
+Platform first (Firebase console → Authentication → Settings → Upgrade). Then
+turning TOTP on is two nested switches — a project-level state and the TOTP
+provider underneath — and setting only the inner one is a silent no-op, so
+`enable-totp-mfa` sets both.
+
+```clojure
+(admin/get-mfa-config auth)
+; => {:state :disabled
+;     :totp {:state nil :adjacent-intervals nil}
+;     :sms  {:state :disabled}}
+
+(admin/enable-totp-mfa auth)                          ; :enabled — users MAY enrol
+(admin/enable-totp-mfa auth {:adjacent-intervals 3})  ; ±3 windows of 30s for clock skew
+
+(admin/set-mfa-config {:state :mandatory} auth)       ; everyone without a factor is locked out
+(admin/disable-mfa auth)                              ; factors are kept, not deleted
+```
+
+`:mandatory` locks out every user who has not already enrolled, so reach for
+`:enabled` and let your own gate decide who has to have it — enrolment has to
+lead enforcement, not follow it. Writes carry an update mask built from the
+keys you pass, so the rest of the project config (which includes the password
+hashing secret) is never round-tripped. `:sms` is reported but not
+configured: it lives in a different field from TOTP, which is also why a TOTP
+write cannot touch it.
+
+`get-project-config` returns the wider configuration — sign-in methods,
+authorised domains — minus that hashing secret.
+
+### Testing without Firebase
+
+Every request fire makes goes through one function, `fire.utils/http!`, and it
+honours `fire.utils/*http-fn*` when bound. A responder takes http-kit's request
+options map and returns a response map — `:status` and `:body`, or `:error` for
+a failed connection — so a test can answer for Firebase itself:
+
+```clojure
+(require '[fire.utils :as utils])
+
+(binding [utils/*http-fn* (fn [request]
+                            {:status 200
+                             :body (utils/encode {:users [{:localId "uid-123" :email "person@domain.com"}]})})]
+  (admin/get-user "uid-123" auth))
+; => {:uid "uid-123" :email "person@domain.com" ...} — and nothing left the process
+```
+
+It is a dynamic var rather than something to `with-redefs`, because fire
+compiles with direct linking (a redefined `defn` is never seen by its callers),
+and because `binding` is thread-local: a responder bound in one test reaches no
+other test's requests, while the futures and `pmap`s that test itself starts do
+see it, since Clojure conveys bindings to them. A suite that used to share one live Firebase project —
+and serialise on it — can run every Firebase-touching test in parallel with
+nothing to collide on. `test/fire/seam_test.clj` drives each request path this
+way and is the pattern to copy.
+
+Give `auth` a live token and it is never refreshed: `{:token "t" :expiry (+
+(utils/now) 3600) :project-id "p"}`. A fake tests your code and not Google's,
+so keep a thin live tier for the shape of the API itself.
+
+### Credentials, and what happens without them
+
+`auth/create-token` mints an OAuth2 access token from the service account json
+in an env var. When it cannot, it says why, beside `:env`:
+
+```clojure
+(auth/create-token "NOT_SET")
+; => {:env "NOT_SET" :error true :error-data "MISSING_CREDENTIALS"}
+;    INVALID_CREDENTIALS      — set, but not a service account's json
+;    TOKEN_EXCHANGE_FAILED: … — google refused the assertion, or was unreachable
+```
+
+`fire.admin` refuses such a map with `MISSING_CREDENTIALS` before sending
+anything, since nothing on the identity toolkit is callable anonymously.
+`fire.core` and `fire.storage` send a nil auth bare, because a public database
+or bucket is a real thing.
+
+Tokens expire after an hour. The request paths refresh them through
+`auth/token-for`, which caches the replacement per env var, so a long-lived
+process holding one `auth` map pays for the exchange once an hour rather than
+once a call. `auth/forget-token!` drops a cached token, for credentials rotated
+while the process runs.
+
 ## Thanks 
 Special thanks to: 
 - [@sgrove](https://github.com/sgrove)

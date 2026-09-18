@@ -107,25 +107,27 @@
 
 (defn- request
   "Call an Identity Toolkit admin endpoint for the project behind `auth`.
-   Returns the decoded body on success and an error map on any failure."
+   Returns the decoded body on success and an error map on any failure.
+
+   Nothing here is callable anonymously, so an auth map that yields no token
+   — create-token failed, or the map never came from it — is refused before a
+   request is built, as MISSING_CREDENTIALS. Sending it would only have come
+   back as a 401 wearing the same error shape as a user who does not exist."
   [{:keys [method path body query-params root]} auth options]
   (try
-    (let [token (when (:expiry auth)
-                  (if (< (utils/now) (:expiry auth))
-                    (:token auth)
-                    (-> auth :env fire-auth/create-token :token)))
-          request-options (reduce utils/recursive-merge
-                            [{:method (or method :post)}
-                             {:url (endpoint (or root projects-root) path auth options)}
-                             {:headers {"Content-Type" "application/json"
-                                        "Connection" "keep-alive"}}
-                             {:keepalive 600000}
-                             (when body {:body (utils/encode body)})
-                             (when query-params {:query-params query-params})
-                             (when token {:headers {"Authorization" (str "Bearer " token)}})])
-          c sni-client]
-      (binding [org.httpkit.client/*default-client* c]
-        (let [response @(client/request request-options)
+    (let [token (fire-auth/token-for auth)]
+      (if-not token
+        (err "MISSING_CREDENTIALS")
+        (let [request-options (reduce utils/recursive-merge
+                                [{:method (or method :post)}
+                                 {:url (endpoint (or root projects-root) path auth options)}
+                                 {:headers {"Content-Type" "application/json"
+                                            "Connection" "keep-alive"
+                                            "Authorization" (str "Bearer " token)}}
+                                 {:keepalive 600000}
+                                 (when body {:body (utils/encode body)})
+                                 (when query-params {:query-params query-params})])
+              response (utils/http! sni-client request-options)
               status (or (:status response) 0)
               decoded (some-> response :body utils/decode)]
           (cond
@@ -603,7 +605,12 @@
      :totp {:state (some-> (:state totp) str/lower-case keyword)
             ;; how many 30s windows either side of now a code is accepted.
             ;; google defaults to 5, which is a forgiving +/- 2.5 minutes
-            :adjacent-intervals (-> totp :totpProviderConfig :adjacentIntervals)}}))
+            :adjacent-intervals (-> totp :totpProviderConfig :adjacentIntervals)}
+     ;; sms second factors are switched on through a different field from
+     ;; totp — mfa.enabledProviders rather than mfa.providerConfigs — which is
+     ;; why a totp write can never touch them. read-only here: fire does not
+     ;; configure sms.
+     :sms {:state (if (some #{"PHONE_SMS"} (:enabledProviders mfa)) :enabled :disabled)}}))
 
 (defn- ->project-config [config]
   (let [sign-in (:signIn config)]
@@ -631,7 +638,8 @@
 (defn get-mfa-config
   "Just the MFA half of get-project-config:
    {:state :disabled|:enabled|:mandatory
-    :totp {:state ... :adjacent-intervals n}}"
+    :totp {:state ... :adjacent-intervals n}
+    :sms  {:state :enabled|:disabled}}"
   ([auth] (get-mfa-config auth nil))
   ([auth options]
    (let [res (get-project-config auth options)]
@@ -662,6 +670,12 @@
 
      (set-mfa-config {:state :enabled} auth)
      (set-mfa-config {:totp {:state :enabled :adjacent-intervals 3}} auth)
+
+   A :totp write replaces mfa.providerConfigs wholesale. That is safe today
+   because TOTP is the only provider Identity Platform configures through
+   that field — SMS lives in mfa.enabledProviders, which the mask never
+   names — but it is a replace, not a merge, and a second providerConfigs
+   entry would not survive it.
 
    :state is the parent switch and the one people miss:
      :disabled  — nobody can enrol; second factor claims are always nil
@@ -721,8 +735,9 @@
    session.
 
    Signed locally with the service account's private key, so it costs no api
-   call. `options` may carry :claims, which land in the resulting ID token's
-   custom claims, and :tenant-id.
+   call — and the key is derived from the credentials once, not per token.
+   `options` may carry :claims, which land in the resulting ID token's custom
+   claims, and :tenant-id.
 
    Returns the token string, or an error map."
   ([uid auth] (create-custom-token uid auth nil))
@@ -734,12 +749,14 @@
        problem (err problem)
        :else
        (try
-         (let [creds (oauth2/credentials (:env auth))
+         (let [key (oauth2/signing-key (:env auth))
                now (utils/now)]
-           (if-not (:private_key creds)
-             (err "MISSING_CREDENTIALS")
-             (let [claims (cond-> {:iss (:client_email creds)
-                                   :sub (:client_email creds)
+           (cond
+             (nil? key) (err "MISSING_CREDENTIALS")
+             (:error key) key
+             :else
+             (let [claims (cond-> {:iss (:client-email key)
+                                   :sub (:client-email key)
                                    :aud custom-token-audience
                                    :iat now
                                    ;; firebase caps custom tokens at an hour
@@ -747,9 +764,7 @@
                                    :uid uid}
                             (seq (:claims options)) (assoc :claims (:claims options))
                             (:tenant-id options) (assoc :tenant_id (:tenant-id options)))]
-               (oauth2/sign claims
-                            (oauth2/str->private-key (:private_key creds))
-                            {:alg "RS256" :typ "JWT"}))))
+               (oauth2/sign claims (:private-key key) {:alg "RS256" :typ "JWT"}))))
          (catch Exception e (err (.getMessage e))))))))
 
 (defn create-session-cookie

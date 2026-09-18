@@ -1,6 +1,5 @@
 (ns fire.auth
-  (:require [org.httpkit.client :as client]
-            [org.httpkit.sni-client :as sni-client]
+  (:require [org.httpkit.sni-client :as sni-client]
             [clojure.string :as str]
             [fire.oauth2 :as oauth2]
             [fire.utils :as utils])
@@ -13,12 +12,80 @@
 (set! *warn-on-reflection* true)
 
 (defn create-token
+  "Exchange the service account credentials in `env-var` (default
+   GOOGLE_APPLICATION_CREDENTIALS) for an auth map:
+   {:token ... :expiry ... :project-id ... :type ... :env env-var}.
+
+   When it cannot, the map carries the reason alongside :env rather than
+   quietly lacking a token — {:error true :error-data ...} with one of
+   MISSING_CREDENTIALS (the variable is unset or empty), INVALID_CREDENTIALS
+   (set, but not the service account json) or TOKEN_EXCHANGE_FAILED: ...
+   (Google refused the assertion or could not be reached). Everything in fire
+   that takes an auth map refuses to send an unauthenticated request when it
+   is handed one of these, so the failure surfaces where the credential was
+   configured rather than as a 401 three calls later.
+
+   This mints a token every time it is called. For a long-lived process reach
+   for token-for below, which caches per env var; the request paths in fire
+   already do."
   ([]
     (create-token nil))
   ([env-var]
     (let [env-var (if (nil? env-var) "GOOGLE_APPLICATION_CREDENTIALS" env-var)
           auth (oauth2/get-token env-var)]
-      (merge auth {:env env-var}))))
+      (merge (or auth {:error true :error-data "MISSING_CREDENTIALS"})
+             {:env env-var}))))
+
+;; ---------------------------------------------------------------------------
+;; The access token cache.
+;;
+;; An auth map is immutable, so a request that finds its token expired has
+;; nowhere to keep the replacement it mints — which used to mean that once an
+;; hour had passed, EVERY call re-minted (an RSA signature and a round trip to
+;; Google's token endpoint) and threw the result away. This cache is where the
+;; replacement lives, keyed by the env var the credentials came from, so the
+;; second call after expiry is as cheap as the first ever was.
+;;
+;; Two threads that miss at the same moment both mint and the later write
+;; wins; both tokens are valid, so nothing is lost but one exchange.
+;; ---------------------------------------------------------------------------
+
+(defonce ^:private token-cache (atom {})) ;; env-var -> auth map from create-token
+
+(defn- live? [{:keys [token expiry]}]
+  (boolean (and token expiry (< (utils/now) expiry))))
+
+(defn token-for
+  "A bearer token for `auth` that is good right now, or nil when there is no
+   credential to be had.
+
+   The token on the map is used while it is live. Once it has expired — or
+   when the map never had one, as with a create-token that failed — a fresh
+   one is minted from the map's :env and remembered, so later calls on the
+   same stale map find it here rather than minting again. A map with a token
+   and no :expiry is taken at its word: the caller minted it some other way."
+  [auth]
+  (cond
+    (nil? auth) nil
+    (live? auth) (:token auth)
+    (and (:token auth) (nil? (:expiry auth))) (:token auth)
+    (nil? (:env auth)) nil
+    :else
+    (let [env-var (:env auth)
+          cached (get @token-cache env-var)]
+      (if (live? cached)
+        (:token cached)
+        (let [fresh (create-token env-var)]
+          (when (:token fresh)
+            (swap! token-cache assoc env-var fresh))
+          (:token fresh))))))
+
+(defn forget-token!
+  "Drop the cached token for `env-var`, so the next request mints a new one.
+   For credentials rotated while the process runs; nothing in fire needs it."
+  [env-var]
+  (swap! token-cache dissoc env-var)
+  nil)
 
 ;; ---------------------------------------------------------------------------
 ;; ID token verification — the inverse of create-token/oauth2/sign above.
@@ -47,11 +114,10 @@
 (defn- fetch-certs
   "GET the current {kid -> PEM certificate string} map from Google."
   [url]
-  (binding [org.httpkit.client/*default-client* sni-client/default-client]
-    (let [res @(client/request {:url url :method :get})]
-      (if (= 200 (:status res))
-        (utils/decode (:body res))
-        (throw (ex-info "Failed to fetch Firebase public certs" {:status (:status res) :url url}))))))
+  (let [res (utils/http! sni-client/default-client {:url url :method :get})]
+    (if (= 200 (:status res))
+      (utils/decode (:body res))
+      (throw (ex-info "Failed to fetch Firebase public certs" {:status (:status res) :url url})))))
 
 (defn- current-certs
   "Cached certs map for one key set, refreshed once the TTL expires. A refresh

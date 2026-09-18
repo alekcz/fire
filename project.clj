@@ -36,6 +36,11 @@
                             :fail-fast? false
                             :multithread? :namespaces}}
   :profiles { :uberjar {:aot :all}
+              ;; the clojure a consumer runs fire on. CI runs the offline tier
+              ;; under each, because a library that ships source runs on theirs,
+              ;; not on the one pinned above.
+              :clj-1.11 {:dependencies [[org.clojure/clojure "1.11.3"]]}
+              :clj-1.12 {:dependencies [[org.clojure/clojure "1.12.0"]]}
               :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]

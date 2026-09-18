@@ -11,15 +11,24 @@ jobs:
   # doesn't need real firebase, before the emulator and native image builds
   # spend twenty.
   offline:
-    name: Offline tests
+    name: Offline tests (java ${{ matrix.java }}, clojure ${{ matrix.clojure }})
     runs-on: ubuntu-latest
+    # fire is a source-only library, so it runs on whatever jdk and clojure the
+    # consumer brings. two release candidates shipped that loaded on the jdk
+    # and clojure CI used and on nothing newer, because CI only ever had the
+    # one. the live tier below still runs once, on the oldest pair.
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['11', '17', '21', '25']
+        clojure: ['1.11', '1.12']
     steps:
     - uses: actions/checkout@v4
 
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: '11'
+        java-version: ${{ matrix.java }}
 
     - name: Install Leiningen
       run: |
@@ -37,7 +46,9 @@ jobs:
               ${{ runner.os }}-maven-
 
     - name: Run offline tests
-      run: lein test :offline
+      # the profile's clojure replaces project.clj's, which is what happens
+      # on a consumer's classpath
+      run: lein with-profile +clj-${{ matrix.clojure }} test :offline
 
   build:
     needs: offline
