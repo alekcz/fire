@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.7.0-RC4] - 2026-09-19
 ### Added
 - `fire.utils/*http-fn*`, a dynamic var that is the one seam between fire and
   the network. Every outbound request — the OAuth exchange, Google's public
@@ -35,6 +35,14 @@ All notable changes to this project will be documented in this file. This change
   nothing newer, because CI only ever had the one.
 
 ### Changed
+- Dependencies brought to their latest stable releases: cheshire 5.13.0 → 6.2.0
+  (Jackson 2.17.0 → 2.21.1; its one breaking change is Windows line endings
+  in pretty-printing, which fire does not use), core.async 1.6.681 → 1.8.741,
+  clj-uuid 0.1.9 → 0.2.5, and the lein-cloverage and lein-eftest plugins. All still run on
+  Java 8. nippy moves to 3.9.0 in the dev profile, which leaves the tree with
+  no version conflicts at all. The dev-only malli, claypoole and criterium
+  are left where they are: they exist for the live tests and nothing about
+  them is a consumer's concern.
 - http-kit 2.7.0 → 2.8.1, the latest stable. Client-side that is 2.8.0's fix
   for the handling of some bad SSL certificates (#535) and 2.8.1's backport of
   a performance regression fix (#568); minimum Java moves from 7 to 8, which

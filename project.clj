@@ -1,17 +1,17 @@
-(defproject alekcz/fire "0.7.0-RC3"
+(defproject alekcz/fire "0.7.0-RC4"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [ [org.clojure/clojure "1.11.3"]
-                  [org.clojure/core.async "1.6.681"]
+  :dependencies [ [org.clojure/clojure "1.11.4"]
+                  [org.clojure/core.async "1.8.741"]
                   [http-kit "2.8.1"]
-                  [cheshire "5.13.0"]
+                  [cheshire "6.2.0"]
                   [environ "1.2.0"]
-                  [danlentz/clj-uuid "0.1.9"]
+                  [danlentz/clj-uuid "0.2.5"]
                   ]
-  :plugins [[lein-cloverage "1.2.2"]
-            [lein-eftest "0.5.9"]
+  :plugins [[lein-cloverage "1.2.4"]
+            [lein-eftest "0.6.0"]
             ]
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :javac-options ["--release" "8" "-g"]
@@ -38,15 +38,15 @@
               ;; the clojure a consumer runs fire on. CI runs the offline tier
               ;; under each, because a library that ships source runs on theirs,
               ;; not on the one pinned above.
-              :clj-1.11 {:dependencies [[org.clojure/clojure "1.11.3"]]}
+              :clj-1.11 {:dependencies [[org.clojure/clojure "1.11.4"]]}
               :clj-1.12 {:dependencies [[org.clojure/clojure "1.12.0"]]}
               :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
-                                     [com.taoensso/nippy "3.1.1"]
+                                     [com.taoensso/nippy "3.9.0"]
                                      [metosin/malli "0.8.0"]
-                                     [eftest/eftest "0.5.9"]]}}
+                                     [eftest/eftest "0.6.0"]]}}
   :aliases
   {;; always clean first. a stale target/classes from a previous uberjar or
    ;; native build gets swept into `lein jar`, which is how compiled clojure
