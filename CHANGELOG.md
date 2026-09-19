@@ -39,10 +39,11 @@ All notable changes to this project will be documented in this file. This change
   (Jackson 2.17.0 → 2.21.1; its one breaking change is Windows line endings
   in pretty-printing, which fire does not use), core.async 1.6.681 → 1.8.741,
   clj-uuid 0.1.9 → 0.2.5, and the lein-cloverage and lein-eftest plugins. All still run on
-  Java 8. nippy moves to 3.9.0 in the dev profile, which leaves the tree with
-  no version conflicts at all. The dev-only malli, claypoole and criterium
-  are left where they are: they exist for the live tests and nothing about
-  them is a consumer's concern.
+  Java 8. nippy moves to 3.9.0 in the dev profile. What a consumer gets carries no
+  version conflicts; the one left in the tree is dev-only (malli 0.8.0 and
+  eftest disagreeing on fipp) and stays, as do malli, claypoole and
+  criterium themselves: they exist for the live tests and nothing about them
+  is a consumer's concern.
 - http-kit 2.7.0 → 2.8.1, the latest stable. Client-side that is 2.8.0's fix
   for the handling of some bad SSL certificates (#535) and 2.8.1's backport of
   a performance regression fix (#568); minimum Java moves from 7 to 8, which
