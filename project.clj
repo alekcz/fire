@@ -8,14 +8,13 @@
                   [http-kit "2.8.1"]
                   [cheshire "5.13.0"]
                   [environ "1.2.0"]
-                  [stylefruits/gniazdo "1.2.1"]
                   [danlentz/clj-uuid "0.1.9"]
                   ]
   :plugins [[lein-cloverage "1.2.2"]
             [lein-eftest "0.5.9"]
             ]
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
-  :javac-options ["--release" "8" "-g"]
+  :javac-options ["--release" "11" "-g"]
   :global-vars {*warn-on-reflection* true}
   ;; ^:skip-aot keeps `lein jar` from compiling anything: a library artifact
   ;; should ship .clj source and let the consumer's own clojure compile it.

@@ -8,6 +8,8 @@ A lightweight clojure client for Firebase based on the REST API. Basically [Char
 
 ## Prerequisites
 
+Fire runs on Java 11 or later, and on Clojure 1.11 or later.
+
 For fire you will need to create a Realtime Database on Firebase and retrieve the service account credentials.
 
 1. Get the json file containing your service account creditials by following the instruction here https://cloud.google.com/docs/authentication/getting-started

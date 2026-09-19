@@ -64,6 +64,12 @@ All notable changes to this project will be documented in this file. This change
   field, but a replace and not the merge the old wording implied.
 
 ### Removed
+- gniazdo, and with it the seven Jetty 9.4 jars it put on every consumer's
+  classpath — Jetty 9.4 has been end of life since 2022, and nothing but
+  `fire.socket` ever opened a websocket. `fire.socket` now runs on
+  `fire.ws`, a small client over the JDK's own `java.net.http.WebSocket`,
+  and behaves as before. **This raises fire's floor from Java 8 to Java 11**,
+  where that client arrived; the Java 8 native image build goes with it.
 - `totp.sh` and a stray `totp.sh.bak` from the repository root. The script
   lives on as `scripts/enable-totp-mfa.sh`, the gcloud-only fallback for a
   project with no service account yet; `fire.admin/enable-totp-mfa` does the
