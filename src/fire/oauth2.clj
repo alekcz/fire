@@ -96,6 +96,40 @@
      "https://www.googleapis.com/auth/identitytoolkit"
      "https://www.googleapis.com/auth/firebase"]))
 
+(defn exchange-token
+  "Trade a service account's signed assertion for an OAuth2 access token:
+   {:token ... :expiry ... :project-id ... :type ...}, or an error map saying
+   why not. `creds` is the decoded service account json; `private-key` its
+   key, already derived. The network half of get-token, on its own so it can
+   be driven through fire.utils/*http-fn*."
+  [creds ^PrivateKey private-key]
+  (let [aud "https://oauth2.googleapis.com/token"
+        t (utils/now)
+        claims {:iss (:client_email creds) :scope scopes :aud aud :iat t :exp (+ t 3599)}
+        token (sign claims private-key)
+        body (str "grant_type=" (URLEncoder/encode "urn:ietf:params:oauth:grant-type:jwt-bearer") "&assertion=" token "&access_type=offline")
+        res' (try
+               (utils/http! sni-client/default-client
+                            {:url aud
+                             :headers {"Content-Type" "application/x-www-form-urlencoded"}
+                             :body body
+                             :method :post})
+               (catch Exception e {:error e}))
+        res (try (some-> res' :body utils/decode) (catch Exception _ nil))]
+    (cond
+      (:error res')
+      {:error true :error-data (str "TOKEN_EXCHANGE_FAILED: " (ex-message (:error res')))}
+
+      (not= (:status res') 200)
+      {:error true :error-data (str "TOKEN_EXCHANGE_FAILED: "
+                                    (or (:error_description res) (:error res) (:status res')))}
+
+      :else
+      {:token (:access_token res)
+       :expiry (+ (utils/now) (:expires_in res) -5)
+       :project-id (:project_id creds)
+       :type (:type creds)})))
+
 (defn get-token
   "Exchange the service account in `env-var` for an OAuth2 access token:
    {:token ... :expiry ... :project-id ... :type ...}.
@@ -105,36 +139,9 @@
    error map says so, because those two are different problems from having no
    credentials and used to look identical."
   [env-var]
-  (let [auth (credentials env-var)]
+  (let [creds (credentials env-var)]
     (cond
-      (nil? auth) nil
-      (:error auth) auth
-      (str/blank? (:private_key auth)) nil
-      :else
-      (let [aud "https://oauth2.googleapis.com/token"
-            t (utils/now)
-            ^PrivateKey private-key (:private-key (signing-key env-var))
-            claims {:iss (:client_email auth) :scope scopes :aud aud :iat t :exp (+ t 3599)}
-            token (sign claims private-key)
-            body (str "grant_type=" (URLEncoder/encode "urn:ietf:params:oauth:grant-type:jwt-bearer") "&assertion=" token "&access_type=offline")
-            res' (try
-                   (utils/http! sni-client/default-client
-                                {:url aud
-                                 :headers {"Content-Type" "application/x-www-form-urlencoded"}
-                                 :body body
-                                 :method :post})
-                   (catch Exception e {:error e}))
-            res (try (some-> res' :body utils/decode) (catch Exception _ nil))]
-        (cond
-          (:error res')
-          {:error true :error-data (str "TOKEN_EXCHANGE_FAILED: " (ex-message (:error res')))}
-
-          (not= (:status res') 200)
-          {:error true :error-data (str "TOKEN_EXCHANGE_FAILED: "
-                                        (or (:error_description res) (:error res) (:status res')))}
-
-          :else
-          {:token (:access_token res)
-           :expiry (+ (utils/now) (:expires_in res) -5)
-           :project-id (:project_id auth)
-           :type (:type auth)})))))
+      (nil? creds) nil
+      (:error creds) creds
+      (str/blank? (:private_key creds)) nil
+      :else (exchange-token creds (:private-key (signing-key env-var))))))

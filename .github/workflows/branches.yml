@@ -9,15 +9,24 @@ on:
 
 jobs:
   offline:
-    name: Offline tests
+    name: Offline tests (java ${{ matrix.java }}, clojure ${{ matrix.clojure }})
     runs-on: ubuntu-latest
+    # the same matrix as the master workflow, because this is the one that runs
+    # on a branch and on a PR against anything but master — and a source-only
+    # library runs on whatever jdk and clojure the consumer brings
+    strategy:
+      fail-fast: false
+      matrix:
+        # 8 is the floor, and it is on the list so that it stays one
+        java: ['8', '11', '17', '21', '25']
+        clojure: ['1.11', '1.12']
     steps:
     - uses: actions/checkout@v4
 
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: '11'
+        java-version: ${{ matrix.java }}
 
     - name: Install Leiningen
       run: |
@@ -38,7 +47,7 @@ jobs:
     # without real firebase credentials, so a fork or a branch pushed before
     # secrets exist still gets a signal.
     - name: Run offline tests
-      run: lein test :offline
+      run: lein with-profile +clj-${{ matrix.clojure }} test :offline
 
   full:
     name: Full test suite

@@ -6,6 +6,7 @@
    level, on hand-built bytes, for what an echo server never sends: a message
    split across continuation frames, a ping, the three length encodings."
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [org.httpkit.server :as server]
             [fire.ws :as ws])
   (:import [java.io DataInputStream ByteArrayInputStream ByteArrayOutputStream]
@@ -68,6 +69,122 @@
   (testing "the mask bit is set on every client frame, as the spec demands"
     (is (bit-test (aget ^bytes (ws/encode-frame :text (utf8 "x")) 1) 7))
     (is (bit-test (aget ^bytes (ws/encode-frame :close (byte-array 2)) 1) 7))))
+
+;; ---------------------------------------------------------------------------
+;; the read loop, fed frames a server would send and an echo server never does
+;; ---------------------------------------------------------------------------
+
+(defn- fake-conn
+  "A connection whose input is the given frames and whose output is captured.
+   The socket is a real, unconnected one, so finish! has something to close."
+  [& frames]
+  (let [out (ByteArrayOutputStream.)
+        received (atom [])
+        closed (promise)
+        errors (atom [])]
+    {:conn {:socket (java.net.Socket.) :in (apply stream frames) :out out
+            :send-lock (Object.) :closing (atom false) :closed (atom false)
+            :on-receive #(swap! received conj %)
+            :on-close (fn [code reason] (deliver closed [code reason]))
+            :on-error #(swap! errors conj %)}
+     :sent (fn [] (let [in (DataInputStream. (ByteArrayInputStream. (.toByteArray out)))]
+                    (loop [acc []] (let [f (try (ws/read-frame in) (catch java.io.EOFException _ nil))]
+                                     (if f (recur (conj acc f)) acc)))))
+     :received received :closed closed :errors errors}))
+
+(deftest ^:offline read-loop-test
+  (testing "a message split across frames is delivered once, whole, and decoded once"
+    ;; the euro sign is three bytes; the split lands inside it
+    (let [bs (utf8 "price: €5")
+          {:keys [conn received closed]} (fake-conn (server-frame false 0x1 (java.util.Arrays/copyOfRange bs 0 8))
+                                                    (server-frame true 0x0 (java.util.Arrays/copyOfRange bs 8 (alength bs)))
+                                                    (server-frame true 0x8 (byte-array [3 (unchecked-byte 232)])))]
+      (#'ws/read-loop conn)
+      (is (= ["price: €5"] @received))
+      (is (= [1000 ""] @closed))))
+
+  (testing "a ping is answered with a pong carrying the same payload"
+    (let [{:keys [conn sent closed]} (fake-conn (server-frame true 0x9 (utf8 "keepalive"))
+                                                (server-frame true 0x8 (byte-array 0)))]
+      (#'ws/read-loop conn)
+      (let [[pong close] (sent)]
+        (is (= :pong (:opcode pong)))
+        (is (= "keepalive" (String. ^bytes (:payload pong) StandardCharsets/UTF_8)))
+        (is (= :close (:opcode close)) "and the peer's close was answered"))
+      ;; a close frame with no body has no code: 1005 is the reserved 'none given'
+      (is (= [1005 ""] @closed))))
+
+  (testing "a pong and an opcode this client does not speak are skipped"
+    (let [{:keys [conn received closed]} (fake-conn (server-frame true 0xA (utf8 "unsolicited"))
+                                                    (server-frame true 0x3 (utf8 "reserved"))
+                                                    (server-frame true 0x1 (utf8 "real"))
+                                                    (server-frame true 0x8 (byte-array 0)))]
+      (#'ws/read-loop conn)
+      (is (= ["real"] @received))
+      (is (realized? closed))))
+
+  (testing "a close with a reason passes the reason through"
+    (let [reason (utf8 "going away")
+          payload (byte-array (concat [3 (unchecked-byte 233)] reason))
+          {:keys [conn closed]} (fake-conn (server-frame true 0x8 payload))]
+      (#'ws/read-loop conn)
+      (is (= [1001 "going away"] @closed))))
+
+  (testing "the stream ending with no close frame is an abnormal close, reported once"
+    (let [{:keys [conn closed errors]} (fake-conn (server-frame true 0x1 (utf8 "then silence")))]
+      (#'ws/read-loop conn)
+      (is (= 1006 (first @closed)))
+      (is (empty? @errors) "eof is a close, not an error")
+      ;; a second finish! does nothing: the owner hears about it once
+      (#'ws/finish! conn 1000 "again")
+      (is (= 1006 (first @closed)))))
+
+  (testing "a server frame that is masked, against the spec, is read rather than refused"
+    (let [{:keys [conn received]} (fake-conn (ws/encode-frame :text (utf8 "masked by a server"))
+                                             (server-frame true 0x8 (byte-array 0)))]
+      (#'ws/read-loop conn)
+      (is (= ["masked by a server"] @received))))
+
+  (testing "a close we started is not answered again when the peer's close arrives"
+    (let [{:keys [conn sent closed]} (fake-conn (server-frame true 0x8 (byte-array [3 (unchecked-byte 232)])))]
+      (reset! (:closing conn) true)
+      (#'ws/read-loop conn)
+      (is (empty? (sent)))
+      (is (= [1000 ""] @closed)))))
+
+;; ---------------------------------------------------------------------------
+;; the upgrade, against servers that answer it wrongly
+;; ---------------------------------------------------------------------------
+
+(defn- with-raw-server
+  "One connection, answered with `response` after the request is read, then
+   closed. For the upgrade answers a websocket server never gives."
+  [^String response f]
+  (let [server (java.net.ServerSocket. 0)
+        thread (Thread. (fn []
+                          (try
+                            (with-open [sock (.accept server)]
+                              (let [in (java.io.BufferedReader. (java.io.InputStreamReader. (.getInputStream sock)))]
+                                (loop [] (let [line (.readLine in)] (when-not (or (nil? line) (str/blank? line)) (recur)))))
+                              (.write (.getOutputStream sock) (.getBytes response StandardCharsets/US_ASCII))
+                              (.flush (.getOutputStream sock)))
+                            (catch Exception _))))]
+    (.start thread)
+    (try (f (str "ws://127.0.0.1:" (.getLocalPort server)))
+         (finally (.close server)))))
+
+(deftest ^:offline bad-upgrade-test
+  (testing "a 101 with the wrong Sec-WebSocket-Accept is refused: the server did not prove it read our key"
+    (with-raw-server (str "HTTP/1.1 101 Switching Protocols\r\n"
+                          "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                          "Sec-WebSocket-Accept: bm90IHRoZSBhbnN3ZXI=\r\n\r\n")
+      (fn [url]
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"wrong Sec-WebSocket-Accept" (ws/connect url))))))
+
+  (testing "a server that hangs up mid-handshake is an eof, not a hang"
+    (with-raw-server "HTTP/1.1 101 Switching"
+      (fn [url]
+        (is (thrown? java.io.EOFException (ws/connect url)))))))
 
 ;; ---------------------------------------------------------------------------
 ;; against a server
