@@ -59,7 +59,8 @@
 
 (deftest ^:offline encode-frame-test
   (testing "a client frame is masked, and unmasks back to what went in"
-    (doseq [^String text ["" "hello" (apply str (repeat 70000 "x"))]]
+    ;; one payload per length encoding: 7-bit, 16-bit, 64-bit
+    (doseq [^String text ["" "hello" (apply str (repeat 1000 "y")) (apply str (repeat 70000 "x"))]]
       (let [payload (utf8 text)
             frame (ws/read-frame (stream (ws/encode-frame :text payload)))]
         (is (:fin? frame))
@@ -151,6 +152,43 @@
       (#'ws/read-loop conn)
       (is (empty? (sent)))
       (is (= [1000 ""] @closed)))))
+
+(deftest ^:offline read-loop-failure-test
+  (testing "a socket that dies mid-read is an error and an abnormal close, in that order"
+    (let [{:keys [conn closed errors]} (fake-conn)
+          dying (proxy [java.io.InputStream] []
+                  (read ([] (throw (java.net.SocketException. "Connection reset")))
+                        ([^bytes b off len] (throw (java.net.SocketException. "Connection reset")))))
+          conn (assoc conn :in (DataInputStream. dying))]
+      (#'ws/read-loop conn)
+      (is (= 1 (count @errors)))
+      (is (instance? java.net.SocketException (first @errors)))
+      (is (= [1006 "Connection reset"] @closed))))
+
+  (testing "an output that fails does not stop the reader answering, or closing"
+    ;; the pong to a ping and the answer to a close both go out through the
+    ;; failing stream; neither failure may kill the loop or reach the owner
+    (let [{:keys [conn received closed errors]} (fake-conn (server-frame true 0x9 (utf8 "ping"))
+                                                           (server-frame true 0x1 (utf8 "still here"))
+                                                           (server-frame true 0x8 (byte-array 0)))
+          broken (proxy [java.io.OutputStream] []
+                   (write ([b] (throw (java.io.IOException. "Broken pipe")))
+                          ([^bytes b off len] (throw (java.io.IOException. "Broken pipe")))))
+          conn (assoc conn :out broken)]
+      (#'ws/read-loop conn)
+      (is (= ["still here"] @received))
+      (is (empty? @errors))
+      (is (= 1005 (first @closed)))))
+
+  (testing "close! on a connection whose output has gone still ends it, once"
+    (let [{:keys [conn closed]} (fake-conn)
+          broken (proxy [java.io.OutputStream] []
+                   (write ([b] (throw (java.io.IOException. "Broken pipe")))
+                          ([^bytes b off len] (throw (java.io.IOException. "Broken pipe")))))
+          conn (assoc conn :out broken)]
+      (is (nil? (ws/close! conn)))
+      (is (= 1006 (first @closed)))
+      (is (nil? (ws/close! conn)) "and again is nothing"))))
 
 ;; ---------------------------------------------------------------------------
 ;; the upgrade, against servers that answer it wrongly

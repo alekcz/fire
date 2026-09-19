@@ -3,6 +3,8 @@
    spot — so every outcome Google can hand back is reached without Google."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
+            [environ.core :as environ]
+            [fire.auth :as fire-auth]
             [fire.oauth2 :as oauth2]
             [fire.utils :as utils])
   (:import [java.security KeyPair KeyPairGenerator Signature]
@@ -55,7 +57,12 @@
 
   (testing "google unreachable is the exception's message, not a throw"
     (let [[auth _] (exchange {:error (java.net.ConnectException. "Connection refused")})]
-      (is (= {:error true :error-data "TOKEN_EXCHANGE_FAILED: Connection refused"} auth)))))
+      (is (= {:error true :error-data "TOKEN_EXCHANGE_FAILED: Connection refused"} auth))))
+
+  (testing "and so is the http layer itself throwing"
+    (binding [utils/*http-fn* (fn [_] (throw (java.net.SocketTimeoutException. "Read timed out")))]
+      (is (= {:error true :error-data "TOKEN_EXCHANGE_FAILED: Read timed out"}
+             (oauth2/exchange-token creds (.getPrivate key-pair)))))))
 
 (deftest ^:offline signing-key-test
   (testing "no credentials is nil, and stays nil rather than being cached as something"
@@ -70,3 +77,52 @@
                      (.initVerify (.getPublic key-pair))
                      (.update (.getBytes (str h "." p) "UTF-8")))]
       (is (.verify verifier (.decode (Base64/getUrlDecoder) ^String sig))))))
+
+
+;; ---------------------------------------------------------------------------
+;; what is in the env var. environ's `env` is a map read at load time, so the
+;; tests stand in a map of their own — a value, not a function, so direct
+;; linking leaves the redefinition visible.
+;; ---------------------------------------------------------------------------
+
+(defn- with-env [m f]
+  (with-redefs [environ/env m] (f)))
+
+(deftest ^:offline credentials-from-env-test
+  (with-env {:garbage-creds "not json at all"
+             :keyless-creds (utils/encode (dissoc creds :private_key))
+             :blank-creds ""
+             :real-creds (utils/encode creds)}
+    (fn []
+      (testing "a variable that is set but is not a service account"
+        (is (= {:error true :error-data "INVALID_CREDENTIALS"} (oauth2/credentials :garbage-creds)))
+        (is (= {:error true :error-data "INVALID_CREDENTIALS"} (oauth2/signing-key :garbage-creds)))
+        (is (= {:error true :error-data "INVALID_CREDENTIALS"} (oauth2/get-token :garbage-creds)))
+        (is (= {:error true :error-data "INVALID_CREDENTIALS" :env :garbage-creds}
+               (fire-auth/create-token :garbage-creds))))
+
+      (testing "a service account json with no private key is treated as no credentials"
+        (is (nil? (oauth2/signing-key :keyless-creds)))
+        (is (nil? (oauth2/get-token :keyless-creds)))
+        (is (= {:error true :error-data "MISSING_CREDENTIALS" :env :keyless-creds}
+               (fire-auth/create-token :keyless-creds))))
+
+      (testing "an empty variable is no credentials"
+        (is (nil? (oauth2/credentials :blank-creds)))
+        (is (nil? (oauth2/get-token :blank-creds))))
+
+      (testing "real credentials derive a signing key once and keep it"
+        (let [first-key (oauth2/signing-key :real-creds)]
+          (is (= (:client_email creds) (:client-email first-key)))
+          (is (instance? java.security.PrivateKey (:private-key first-key)))
+          (is (identical? first-key (oauth2/signing-key :real-creds)) "the second call is the cache")))
+
+      (testing "and get-token carries them through the exchange"
+        (binding [utils/*http-fn* (constantly {:status 200 :body (utils/encode {:access_token "t" :expires_in 60})})]
+          (let [auth (oauth2/get-token :real-creds)]
+            (is (= "t" (:token auth)))
+            (is (= "test-project" (:project-id auth))))
+          (let [auth (fire-auth/create-token :real-creds)]
+            (is (= "t" (:token auth)))
+            (is (= :real-creds (:env auth)))
+            (is (not (:error auth)))))))))
