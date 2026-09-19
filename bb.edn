@@ -1,0 +1,95 @@
+{:min-bb-version "1.3.0"
+ :tasks
+ {:requires ([babashka.fs :as fs]
+             [babashka.process :refer [shell]]
+             [clojure.string :as str])
+
+  :init
+  (do
+    ;; project.clj is the only place the version lives. Read it from there
+    ;; rather than repeating it here, where it would drift a release or two
+    ;; later and publish under a name nobody meant.
+    (def version
+      (or (second (re-find (re-pattern "\\(defproject\\s+\\S+\\s+\\\"([^\\\"]+)\\\"") (slurp "project.clj")))
+          (throw (ex-info "no version found in project.clj" {}))))
+
+    (def jar-path (str "target/fire-" version ".jar"))
+
+    (defn die [& msg]
+      (binding [*out* *err*] (apply println msg))
+      (System/exit 1))
+
+    ;; 0.7.0-RC1 and RC2 shipped 2758 AOT classes — compiled copies of clojure
+    ;; itself and every dependency — because `lein jar` packages whatever sits
+    ;; in target/classes, and a native-image build had been run first. Nothing
+    ;; in the build fails when that happens; the jar is simply 3.3MB of the
+    ;; wrong thing. So look inside it before it leaves the machine.
+    (defn verify-jar! []
+      (when-not (fs/exists? jar-path)
+        (die "no jar at" jar-path))
+      (let [names   (with-open [z (java.util.zip.ZipFile. (fs/file jar-path))]
+                      (mapv (fn [e] (.getName e)) (enumeration-seq (.entries z))))
+            classes (filterv (fn [n] (str/ends-with? n ".class")) names)
+            sources (filterv (fn [n] (str/ends-with? n ".clj")) names)
+            kb      (quot (fs/size jar-path) 1024)]
+        (when (seq classes)
+          (die (format "%s carries %d .class files (%s, ...).\nA stale target/ leaked into the jar — run `bb clean` and build again."
+                       jar-path (count classes) (first classes))))
+        (when (empty? sources)
+          (die jar-path "contains no .clj source at all"))
+        (when (> kb 512)
+          (die (format "%s is %dKB; a source-only fire jar is around 40KB" jar-path kb)))
+        (println (format "verified %s — %dKB, %d source files, no AOT classes"
+                         jar-path kb (count sources)))))
+
+    ;; fail here rather than after the build and the gpg passphrase prompt.
+    (defn ensure-credentials! []
+      (when-not (or (and (System/getenv "CLOJARS_USERNAME")
+                         (System/getenv "CLOJARS_PASSWORD"))
+                    (fs/exists? (fs/expand-home "~/.lein/credentials.clj.gpg")))
+        (die (str "no clojars credentials.\n"
+                  "  export CLOJARS_USERNAME=alekcz CLOJARS_PASSWORD=<deploy-token>\n"
+                  "  (clojars stopped accepting account passwords; mint a deploy token)\n"
+                  "  or keep them in ~/.lein/credentials.clj.gpg"))))
+
+    (defn ensure-committed! []
+      (let [dirty (str/trim (:out (shell {:out :string} "git status --porcelain")))]
+        (when (and (seq dirty) (not (some #{"--force"} *command-line-args*)))
+          (die (str "working tree is dirty — commit first, or pass --force:\n" dirty))))))
+
+  clean {:doc "Remove target/. The stale classes that poisoned RC1 and RC2 lived there."
+         :task (shell "lein clean")}
+
+  test {:doc "Offline tests: no credentials, no emulator, no network."
+        :task (shell "lein test :offline")}
+
+  test:matrix {:doc "Offline tests under each supported clojure (1.11, 1.12), as CI runs them."
+               :task (doseq [p ["clj-1.11" "clj-1.12"]]
+                       (println (str "\n== " p))
+                       (shell (str "lein with-profile +" p " test :offline")))}
+
+  test:all {:doc "Full suite with coverage against the firebase emulator. Needs firebase-tools and the FIRE / GOOGLE_APPLICATION_CREDENTIALS secrets."
+            :task (shell "bash ci.sh")}
+
+  native {:doc "Uberjar, native image, and run it — the graal path CI exercises."
+          :task (shell "bash graaltest.sh")}
+
+  verify {:doc "Check the jar sitting in target/ is source-only, without rebuilding it."
+          :task (verify-jar!)}
+
+  jar {:doc "Clean, build the library jar, and verify it is source-only. The release dry run."
+       :task (do (shell "lein clean")
+                 (shell "lein jar")
+                 (verify-jar!))}
+
+  ;; `lein publish` is a shim onto this task, so both front doors get the same
+  ;; guards. The deploy below must stay `lein deploy clojars` and not `lein
+  ;; publish`, or the two would call each other forever.
+  release {:doc "Clean, build, verify, then deploy to clojars. Pass --force to release from a dirty tree."
+           :task (do (ensure-credentials!)
+                     (ensure-committed!)
+                     (shell "lein clean")
+                     (shell "lein jar")
+                     (verify-jar!)
+                     (println (str "\ndeploying " version " to clojars\n"))
+                     (shell "lein deploy clojars"))}}}

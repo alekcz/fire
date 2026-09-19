@@ -48,10 +48,16 @@
                                      [metosin/malli "0.8.0"]
                                      [eftest/eftest "0.6.0"]]}}
   :aliases
-  {;; always clean first. a stale target/classes from a previous uberjar or
-   ;; native build gets swept into `lein jar`, which is how compiled clojure
-   ;; and dependency classes ended up in a published artifact once.
-   "publish" ["do" "clean," "deploy" "clojars"]
+  {;; bb.edn is where the workflows live, so that `bb release` and `lein
+   ;; publish` cannot drift into meaning two different things. bb release
+   ;; cleans first (a stale target/classes from a previous uberjar or native
+   ;; build gets swept into `lein jar`, which is how compiled clojure and
+   ;; dependency classes ended up in a published artifact once), then reads
+   ;; the built jar back and refuses to deploy one carrying .class files.
+   ;; It calls `lein deploy clojars` directly, never this alias — pointing it
+   ;; here instead would loop.
+   "publish" ["shell" "bb" "release"]
+   "verify"  ["shell" "bb" "verify"]
 
    "native"
    ["shell"
