@@ -45,10 +45,8 @@
                               {:headers {"Content-Type" "application/json"}}
                               {:body (utils/encode data)}
                               options])
-          c sni-client]
-      (binding [org.httpkit.client/*default-client* c]
-        (let [response @(client/request request-options)]
-          (:body response :body)))))
+          response (utils/http! sni-client request-options)]
+      (:body response :body)))
 
 (defn detect  
   "Run OCR on Base64 string using Google Cloud Vision. API key required in env-var"

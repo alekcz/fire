@@ -1,7 +1,7 @@
 (ns fire.socket
   (:require [fire.utils :as u]
             [fire.auth :as auth]
-            [gniazdo.core :as ws]
+            [fire.ws :as ws]
             [clojure.core.async :as async]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -52,11 +52,11 @@
         chunks (count submessages)]
         
       (if (= chunks 1)
-        (ws/send-msg sock payload)
+        (ws/send! sock payload)
         (do 
-          (ws/send-msg sock (str chunks))
+          (ws/send! sock (str chunks))
           (doseq [s submessages]
-            (ws/send-msg sock s))))
+            (ws/send! sock s))))
       (swap! conn assoc :count message-count)
       (when read? (swap! conn assoc k (async/chan 1)))
     message-count))
@@ -141,4 +141,4 @@
   (let [sock (:socket @conn)]
     (when (some? sock) 
       ;(send! conn "unauth" {})
-      (ws/close sock))))
+      (ws/close! sock))))

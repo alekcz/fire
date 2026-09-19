@@ -649,6 +649,11 @@
         ;; :expiry in the past drives the refresh branch, which mints a fresh
         ;; token from :env mid-request
         (is (= (:uid prep) (:uid (admin/get-user (:uid prep) (assoc @auth :expiry 0)))))
+        ;; and the replacement was kept, keyed by the env var it came from, so
+        ;; the next call on the same stale map does not mint again
+        (let [cached (get @@#'fire-auth/token-cache (:env @auth))]
+          (is (string? (:token cached)))
+          (is (< (utils/now) (:expiry cached))))
         (finally (admin/delete-user (:uid prep) @auth))))))
 
 (deftest unauthorized-project-test
@@ -838,13 +843,18 @@
 (deftest ^:offline mfa-config-shape-test
   (testing "the wire shape maps onto fire's"
     (is (= {:state :disabled
-            :totp {:state :enabled :adjacent-intervals 5}}
+            :totp {:state :enabled :adjacent-intervals 5}
+            :sms {:state :disabled}}
            (#'admin/->mfa-config
              {:state "DISABLED"
               :providerConfigs [{:state "ENABLED" :totpProviderConfig {:adjacentIntervals 5}}]}))))
 
+  (testing "sms is reported from its own field, which a totp write never names"
+    (is (= :enabled
+           (-> (#'admin/->mfa-config {:state "ENABLED" :enabledProviders ["PHONE_SMS"]}) :sms :state))))
+
   (testing "a project with no MFA configured at all"
-    (is (= {:state nil :totp {:state nil :adjacent-intervals nil}}
+    (is (= {:state nil :totp {:state nil :adjacent-intervals nil} :sms {:state :disabled}}
            (#'admin/->mfa-config nil))))
 
   (testing "the password hashing secret is never passed through"

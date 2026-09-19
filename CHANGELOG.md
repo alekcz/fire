@@ -1,6 +1,89 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [0.7.0-RC4] - 2026-09-19
+### Added
+- `fire.utils/*http-fn*`, a dynamic var that is the one seam between fire and
+  the network. Every outbound request — the OAuth exchange, Google's public
+  certs, the realtime database, storage, vision and the identity toolkit —
+  goes through `fire.utils/http!`, which calls the bound function instead of
+  http-kit when there is one. Bind a responder and nothing leaves the process,
+  so a consumer's Firebase-touching tests can run in parallel with no shared
+  project to collide on. A dynamic var rather than something to `with-redefs`
+  because fire compiles with direct linking, under which a redefined `defn` is
+  never seen by its callers; `binding` is also thread-local, so one test's
+  responder reaches no other test's requests, and is conveyed to the futures
+  that test starts, so its own still do. `test/fire/seam_test.clj` drives
+  every request path through it and is the model for a consumer's own tests.
+- `fire.auth/token-for`, the access token cache. An auth map is immutable, so
+  a request that found its token expired had nowhere to keep the replacement
+  it minted: once an hour had passed, EVERY call re-minted — an RSA signature
+  and a round trip to Google's token endpoint — and threw the result away. The
+  request paths in `fire.admin`, `fire.core` and `fire.storage` now go through
+  `token-for`, which keeps the replacement keyed by the env var the credentials
+  came from. `fire.auth/forget-token!` drops an entry, for credentials rotated
+  while the process runs.
+- `fire.oauth2/signing-key`: the service account's private key is derived from
+  the credentials once per env var, where `create-custom-token` used to
+  re-read and re-parse the json and re-derive the RSA key on every call.
+- `fire.admin/get-mfa-config` reports the SMS second factor's state under
+  `:sms`, read-only. SMS is configured through `mfa.enabledProviders`, a
+  different field from the `mfa.providerConfigs` a TOTP write names, which is
+  why a TOTP write cannot touch it — now visible rather than a thing to know.
+- CI runs the offline tier on Java 11, 17, 21 and 25 against Clojure 1.11 and
+  1.12. Two release candidates loaded on the one JDK and Clojure CI had and on
+  nothing newer, because CI only ever had the one.
+
+### Changed
+- Dependencies brought to their latest stable releases: cheshire 5.13.0 → 6.2.0
+  (Jackson 2.17.0 → 2.21.1; its one breaking change is Windows line endings
+  in pretty-printing, which fire does not use), core.async 1.6.681 → 1.8.741,
+  clj-uuid 0.1.9 → 0.2.5, and the lein-cloverage and lein-eftest plugins. All still run on
+  Java 8. nippy moves to 3.9.0 in the dev profile. What a consumer gets carries no
+  version conflicts; the one left in the tree is dev-only (malli 0.8.0 and
+  eftest disagreeing on fipp) and stays, as do malli, claypoole and
+  criterium themselves: they exist for the live tests and nothing about them
+  is a consumer's concern.
+- http-kit 2.7.0 → 2.8.1, the latest stable. Client-side that is 2.8.0's fix
+  for the handling of some bad SSL certificates (#535) and 2.8.1's backport of
+  a performance regression fix (#568); minimum Java moves from 7 to 8, which
+  fire already required. The `sni-client` namespace fire uses and the
+  `ClientSslEngineFactory$SSLHolder` class the native image names are both
+  unchanged. 2.9 is still in beta and rewrites the client's TLS and body
+  handling; it is left for a release of its own.
+- `fire.auth/create-token` says why when it cannot mint a token. It used to
+  answer a bare `{:env ...}` — no token, no error — and the first sign
+  anything was wrong was a 401 several calls later, wearing the same error
+  shape as a user who does not exist. It now carries `{:error true
+  :error-data ...}` beside `:env`, one of `MISSING_CREDENTIALS` (the env var
+  is unset or empty), `INVALID_CREDENTIALS` (set, but not a service account's
+  json — previously a throw from the json parser) or
+  `TOKEN_EXCHANGE_FAILED: ...` (Google refused the assertion or could not be
+  reached). Purely additive for anyone reading `:token` or `:project-id`
+  off the result, which are nil in both the old and the new shape.
+- `fire.admin` refuses an auth map that yields no token with
+  `MISSING_CREDENTIALS` before building a request, instead of sending one with
+  no `Authorization` header. Nothing on the identity toolkit is callable
+  anonymously, so that request could only ever have been a 401. `fire.core`
+  and `fire.storage` still send a nil auth bare, because a public database or
+  bucket is a real thing there.
+- `set-mfa-config`'s docstring now says that a `:totp` write replaces
+  `mfa.providerConfigs` wholesale rather than merging into it — safe today,
+  because TOTP is the only provider Identity Platform configures through that
+  field, but a replace and not the merge the old wording implied.
+
+### Removed
+- gniazdo, and with it the seven Jetty 9.4 jars it put on every consumer's
+  classpath — Jetty 9.4 has been end of life since 2022, and nothing but
+  `fire.socket` ever opened a websocket. `fire.socket` now runs on
+  `fire.ws`, a small RFC 6455 client on Java 8's own sockets — a TLS socket,
+  the HTTP upgrade, and the frame format — and behaves as before. Fire still
+  runs on Java 8, and CI now runs the offline tier there so that it stays so.
+- `totp.sh` and a stray `totp.sh.bak` from the repository root. The script
+  lives on as `scripts/enable-totp-mfa.sh`, the gcloud-only fallback for a
+  project with no service account yet; `fire.admin/enable-totp-mfa` does the
+  same job from Clojure.
+
 ## [0.7.0-RC3] - 2026-08-21
 ### Fixed
 - The published jar is source-only again, 3.3MB down to 40KB. `lein jar`
