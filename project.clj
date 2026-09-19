@@ -58,6 +58,7 @@
    ;; here instead would loop.
    "publish" ["shell" "bb" "release"]
    "verify"  ["shell" "bb" "verify"]
+   "sign-check" ["shell" "bb" "sign-check"]
 
    "native"
    ["shell"

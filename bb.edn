@@ -52,6 +52,34 @@
                   "  (clojars stopped accepting account passwords; mint a deploy token)\n"
                   "  or keep them in ~/.lein/credentials.clj.gpg"))))
 
+    ;; lein signs a release with gpg, and gpg can only ask for the key's
+    ;; passphrase if it has a terminal to ask on. With GPG_TTY unset it fails
+    ;; with "Inappropriate ioctl for device" — and it fails inside `lein
+    ;; deploy`, after the clean, the build and the verify have all run. So
+    ;; find the terminal up front, prove a signature can actually be made on
+    ;; it, and hand the same terminal to the deploy.
+    (def gpg-tty
+      (let [{:keys [exit out]} (shell {:out :string :err :string :continue true} "tty")]
+        (when (zero? exit) (str/trim out))))
+
+    (defn ensure-signing! []
+      (when-not gpg-tty
+        (die (str "gpg has no terminal to ask for your key passphrase on.\n"
+                  "  run this from an interactive shell, or add :sign-releases false\n"
+                  "  to the clojars entry in :deploy-repositories to publish unsigned.")))
+      (let [scratch (fs/create-temp-file {:prefix "fire-signing-check" :suffix ".txt"})]
+        (spit (fs/file scratch) "fire release signing check")
+        (let [{:keys [exit err]} (shell {:err :string :continue true
+                                         :extra-env {"GPG_TTY" gpg-tty}}
+                                        "gpg" "--armor" "--yes" "--detach-sign"
+                                        "--output" "/dev/null" (str scratch))]
+          (fs/delete-if-exists scratch)
+          (when-not (zero? exit)
+            (die (str "gpg cannot sign, so `lein deploy` would fail after the build:\n"
+                      (str/trim (or err "")) "\n"
+                      "  `export GPG_TTY=$(tty)` in your shell usually fixes it."))))
+        (println (str "gpg can sign on " gpg-tty))))
+
     (defn ensure-committed! []
       (let [dirty (str/trim (:out (shell {:out :string} "git status --porcelain")))]
         (when (and (seq dirty) (not (some #{"--force"} *command-line-args*)))
@@ -77,6 +105,9 @@
   verify {:doc "Check the jar sitting in target/ is source-only, without rebuilding it."
           :task (verify-jar!)}
 
+  sign-check {:doc "Can this shell sign a release? Runs the gpg preflight `bb release` does, and nothing else."
+              :task (ensure-signing!)}
+
   jar {:doc "Clean, build the library jar, and verify it is source-only. The release dry run."
        :task (do (shell "lein clean")
                  (shell "lein jar")
@@ -87,9 +118,10 @@
   ;; publish`, or the two would call each other forever.
   release {:doc "Clean, build, verify, then deploy to clojars. Pass --force to release from a dirty tree."
            :task (do (ensure-credentials!)
+                     (ensure-signing!)
                      (ensure-committed!)
                      (shell "lein clean")
                      (shell "lein jar")
                      (verify-jar!)
                      (println (str "\ndeploying " version " to clojars\n"))
-                     (shell "lein deploy clojars"))}}}
+                     (shell {:extra-env {"GPG_TTY" gpg-tty}} "lein deploy clojars"))}}}
