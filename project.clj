@@ -14,7 +14,7 @@
             [lein-eftest "0.5.9"]
             ]
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
-  :javac-options ["--release" "11" "-g"]
+  :javac-options ["--release" "8" "-g"]
   :global-vars {*warn-on-reflection* true}
   ;; ^:skip-aot keeps `lein jar` from compiling anything: a library artifact
   ;; should ship .clj source and let the consumer's own clojure compile it.

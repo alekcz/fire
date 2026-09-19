@@ -20,8 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 11 is the floor: fire.ws is the jdk's own java.net.http websocket
-        java: ['11', '17', '21', '25']
+        # 8 is the floor, and it is on the list so that it stays one
+        java: ['8', '11', '17', '21', '25']
         clojure: ['1.11', '1.12']
     steps:
     - uses: actions/checkout@v4
@@ -103,6 +103,23 @@ jobs:
           tar xzf graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
         fi 
 
+    - name: Cache GraalVM Java-8
+      uses: actions/cache@v4
+      id: cache-graalvm-8
+      with:
+        path: ~/graalvm-ce-java8-20.3.2
+        key: ${{ runner.os }}-graalvm-20.3.2
+        restore-keys: |
+              ${{ runner.os }}-graalvm-20.3.2
+
+    - name: Download GraalVM Java-8
+      run: |
+        cd ~
+        if ! [ -d graalvm-ce-java8-20.2.0 ]; then
+          curl -O -sL https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
+          tar xzf graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
+        fi     
+
     - name: Cache emulator
       uses: actions/cache@v4
       id: cache-deps-fb
@@ -151,4 +168,22 @@ jobs:
         # component straight from the github release the jdk itself came from.
         curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
         gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        bash ./graaltest.sh
+
+    - name: Build native image Java-8
+      env:
+        _JAVA_OPTIONS: -Xmx7g
+        FIRE: ${{ secrets.FIRE }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+      run: |
+        export GRAALVM_HOME=~/graalvm-ce-java8-20.3.2
+        export JAVA_HOME=~/graalvm-ce-java8-20.3.2/Contents/Home
+        export PATH=$JAVA_HOME/bin:$PATH
+        export PATH=$GRAALVM_HOME/bin:$PATH
+        java -version
+        # gu's component catalog on oca.opensource.oracle.com is gone, so
+        # `gu install native-image` can no longer resolve anything. install the
+        # component straight from the github release the jdk itself came from.
+        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
         bash ./graaltest.sh

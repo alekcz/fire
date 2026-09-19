@@ -8,7 +8,8 @@ A lightweight clojure client for Firebase based on the REST API. Basically [Char
 
 ## Prerequisites
 
-Fire runs on Java 11 or later, and on Clojure 1.11 or later.
+Fire runs on Java 8 or later, and on Clojure 1.11 or later. It depends on
+http-kit, cheshire, core.async, environ and clj-uuid, and nothing else.
 
 For fire you will need to create a Realtime Database on Firebase and retrieve the service account credentials.
 
