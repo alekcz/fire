@@ -35,6 +35,14 @@ All notable changes to this project will be documented in this file. This change
   nothing newer, because CI only ever had the one.
 
 ### Changed
+- http-kit 2.7.0 → 2.8.1. Client-side it fixes the handling of some bad SSL
+  certificates (#535), a performance regression (#568), a `ZipException` on
+  some deflate-encoded responses (#574) and a spurious `Content-Length: 0` on
+  bodiless requests (#583); minimum Java moves from 7 to 8, which fire already
+  required. The `sni-client` namespace fire uses and the
+  `ClientSslEngineFactory$SSLHolder` class the native image names are both
+  unchanged. 2.9 is still in beta and rewrites the client's TLS and body
+  handling; it is left for a release of its own.
 - `fire.auth/create-token` says why when it cannot mint a token. It used to
   answer a bare `{:env ...}` — no token, no error — and the first sign
   anything was wrong was a 401 several calls later, wearing the same error
