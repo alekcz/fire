@@ -115,10 +115,13 @@ jobs:
     - name: Download GraalVM Java-8
       run: |
         cd ~
-        if ! [ -d graalvm-ce-java8-20.2.0 ]; then
+        # the guard has to name the directory the tarball actually extracts
+        # to. it said 20.2.0 while the download is 20.3.2, so it never matched
+        # and ~340MB came down on every run, cache hit or not.
+        if ! [ -d graalvm-ce-java8-20.3.2 ]; then
           curl -O -sL https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
           tar xzf graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
-        fi     
+        fi
 
     - name: Cache emulator
       uses: actions/cache@v4
@@ -127,6 +130,7 @@ jobs:
         path: ~/.cache/firebase/emulators
         key: ${{ runner.os }}-fb-${{ hashFiles('firebase.json') }}
         restore-keys: |
+              ${{ runner.os }}-fb-
 
     - name: Run tests
       env: 
@@ -166,8 +170,12 @@ jobs:
         # gu's component catalog on oca.opensource.oracle.com is gone, so
         # `gu install native-image` can no longer resolve anything. install the
         # component straight from the github release the jdk itself came from.
-        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
-        gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        # it lands INSIDE $GRAALVM_HOME, so a cache hit already carries it —
+        # fetching and installing again each run is 15MB and a step for nothing.
+        if ! [ -x "$GRAALVM_HOME/bin/native-image" ]; then
+          curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+          gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        fi
         bash ./graaltest.sh
 
     - name: Build native image Java-8
@@ -184,6 +192,10 @@ jobs:
         # gu's component catalog on oca.opensource.oracle.com is gone, so
         # `gu install native-image` can no longer resolve anything. install the
         # component straight from the github release the jdk itself came from.
-        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
-        gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        # it lands INSIDE $GRAALVM_HOME, so a cache hit already carries it —
+        # fetching and installing again each run is 15MB and a step for nothing.
+        if ! [ -x "$GRAALVM_HOME/bin/native-image" ]; then
+          curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+          gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        fi
         bash ./graaltest.sh
