@@ -1,7 +1,13 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [0.7.0-RC4] - 2026-09-19
+## [0.7.0] - 2026-09-21
+
+Released as 0.7.0-RC4 and run in production before being cut. This section
+covers what changed since RC3; 0.7.0 also carries everything under RC1, RC2
+and RC3 below, which is where `fire.admin`, the second-factor claims and the
+project MFA configuration arrived.
+
 ### Added
 - `fire.utils/*http-fn*`, a dynamic var that is the one seam between fire and
   the network. Every outbound request — the OAuth exchange, Google's public
@@ -30,8 +36,17 @@ All notable changes to this project will be documented in this file. This change
   `:sms`, read-only. SMS is configured through `mfa.enabledProviders`, a
   different field from the `mfa.providerConfigs` a TOTP write names, which is
   why a TOTP write cannot touch it — now visible rather than a thing to know.
-- CI runs the offline tier on Java 11, 17, 21 and 25 against Clojure 1.11 and
-  1.12. Two release candidates loaded on the one JDK and Clojure CI had and on
+- CI runs the offline tier on Java 8, 11, 17, 21 and 25 against Clojure 1.11
+  and 1.12. Two release candidates loaded on the one JDK and Clojure CI had
+  and on nothing newer, because CI only ever had the one; Java 8 is on the
+  list so that the floor stays where the README says it is.
+- `bb.edn` holds the build workflows — `bb test`, `bb test:matrix`,
+  `bb test:all`, `bb native`, `bb jar`, `bb sign-check`, `bb release` — so
+  that what a contributor runs and what a release runs cannot drift apart.
+  `bb release` reads the built jar back and refuses to deploy one carrying
+  `.class` files, checks the clojars credentials and proves gpg can sign
+  before spending time on a build, and refuses a dirty tree. `lein publish`
+  is a shim onto it. Two release candidates loaded on the one JDK and Clojure CI had and on
   nothing newer, because CI only ever had the one.
 
 ### Changed
@@ -160,10 +175,6 @@ All notable changes to this project will be documented in this file. This change
 Nothing was removed or renamed. Every change above is additive: existing
 `fire.core`, `fire.storage`, `fire.socket`, `fire.vision`, `fire.auth` and
 `fire.oauth2` calls behave exactly as they did in 0.6.0.
-
-## [Unreleased]
-### Changed
-- Add a new arity to `make-widget-async` to provide a different widget shape.
 
 ## [0.1.1] - 2020-04-18
 ### Changed

@@ -18,7 +18,7 @@ For fire you will need to create a Realtime Database on Firebase and retrieve th
 
 ## Usage
 
-`[alekcz/fire "0.7.0-RC4"]`
+`[alekcz/fire "0.7.0"]`
 
 ### Interacting with Realtime Database
 
@@ -350,11 +350,19 @@ Unenrollment is security-sensitive and worth audit logging on the way past —
 fire doesn't log it for you. All of this needs Identity Platform; on the legacy
 Firebase Auth tier `:mfa-info` is simply always empty.
 
+Enrollment is one question; whether a factor was actually presented at sign-in
+is another, and it is answered by the verified ID token's
+`:sign_in_second_factor` — see *Verifying Firebase ID tokens* above. It is
+`nil` on the legacy tier and whenever no second factor was used, so a gate
+that enforces MFA must treat `nil` as a deny.
+
 #### Project configuration and turning MFA on
 
-Enabling MFA is two nested switches, and setting only the inner one is a silent
-no-op — TOTP reads as enabled while nothing works and nothing tells you why.
-So there's one call that sets both:
+The project has to be on Firebase Authentication with Identity Platform first
+(Firebase console → Authentication → Settings → Upgrade), which needs Blaze
+billing. After that, enabling MFA is two nested switches, and setting only the
+inner one is a silent no-op — TOTP reads as enabled while nothing works and
+nothing tells you why. So there's one call that sets both:
 
 ```clojure
 (admin/enable-totp-mfa auth)
@@ -365,7 +373,9 @@ choose to enrol. To inspect or set the pieces individually:
 
 ```clojure
 (admin/get-mfa-config auth)
-; => {:state :enabled :totp {:state :enabled :adjacent-intervals 5}}
+; => {:state :enabled
+;     :totp {:state :enabled :adjacent-intervals 5}
+;     :sms  {:state :disabled}}
 
 (admin/set-mfa-config {:state :enabled} auth)
 (admin/set-mfa-config {:totp {:state :enabled :adjacent-intervals 3}} auth)
@@ -374,7 +384,10 @@ choose to enrol. To inspect or set the pieces individually:
 
 Whichever key you leave out is left alone — the update mask is built from the
 keys you pass, so this never round-trips the rest of your project config and
-can't clobber a setting you didn't mention.
+can't clobber a setting you didn't mention. `:sms` is reported but not
+configured: SMS lives in a different field from TOTP, which is also why a TOTP
+write cannot disturb it. Within TOTP, a `:totp` write replaces the provider
+config rather than merging into it.
 
 `:state` is the project-level switch:
 
@@ -454,57 +467,6 @@ Generated rather than sent, so you can deliver them yourself.
 ; => nil, or {:error true :error-data "PARTIAL_FAILURE" :failures [...]}
 ```
 
-#### Second factors
-
-Enrolment is the client's job against Firebase — the secret never reaches
-your server and fire does not try to change that. What a server needs is the
-support-side half: seeing what a locked-out user has enrolled, and taking it
-off them so they can start over.
-
-```clojure
-(admin/list-user-factors "MjM0NTY3..." auth)
-; => [{:id "e1" :type :totp :display-name "Authenticator" :enrolled-at 1755000000000}]
-(admin/unenroll-user-factor "MjM0NTY3..." "e1" auth)   ; worth audit logging
-(admin/unenroll-all-user-factors "MjM0NTY3..." auth)
-```
-
-Whether a second factor was actually presented at sign-in is on the verified
-ID token, as `:sign_in_second_factor` — see *Verifying Firebase ID tokens*
-above. It is `nil` unless the project is on Identity Platform and MFA was
-used, and an enforcing gate must treat `nil` as a deny.
-
-#### Project MFA policy
-
-The project must be upgraded to Firebase Authentication with Identity
-Platform first (Firebase console → Authentication → Settings → Upgrade). Then
-turning TOTP on is two nested switches — a project-level state and the TOTP
-provider underneath — and setting only the inner one is a silent no-op, so
-`enable-totp-mfa` sets both.
-
-```clojure
-(admin/get-mfa-config auth)
-; => {:state :disabled
-;     :totp {:state nil :adjacent-intervals nil}
-;     :sms  {:state :disabled}}
-
-(admin/enable-totp-mfa auth)                          ; :enabled — users MAY enrol
-(admin/enable-totp-mfa auth {:adjacent-intervals 3})  ; ±3 windows of 30s for clock skew
-
-(admin/set-mfa-config {:state :mandatory} auth)       ; everyone without a factor is locked out
-(admin/disable-mfa auth)                              ; factors are kept, not deleted
-```
-
-`:mandatory` locks out every user who has not already enrolled, so reach for
-`:enabled` and let your own gate decide who has to have it — enrolment has to
-lead enforcement, not follow it. Writes carry an update mask built from the
-keys you pass, so the rest of the project config (which includes the password
-hashing secret) is never round-tripped. `:sms` is reported but not
-configured: it lives in a different field from TOTP, which is also why a TOTP
-write cannot touch it.
-
-`get-project-config` returns the wider configuration — sign-in methods,
-authorised domains — minus that hashing secret.
-
 ### Testing without Firebase
 
 Every request fire makes goes through one function, `fire.utils/http!`, and it
@@ -557,6 +519,33 @@ Tokens expire after an hour. The request paths refresh them through
 process holding one `auth` map pays for the exchange once an hour rather than
 once a call. `auth/forget-token!` drops a cached token, for credentials rotated
 while the process runs.
+
+## Development
+
+The workflows live in `bb.edn`, so that what you run locally and what a release
+runs are the same thing.
+
+```bash
+bb test           # offline tests: no credentials, no emulator, no network
+bb test:matrix    # the same, under clojure 1.11 and 1.12, as CI runs them
+bb test:all       # full suite with coverage against the firebase emulator
+bb native         # uberjar, native image, and run it — the graal path
+bb jar            # clean, build, and check the jar is source-only: the release dry run
+bb sign-check     # can this shell sign a release?
+bb release        # clean, build, verify, deploy to clojars
+```
+
+`bb jar` and `bb release` both look inside the built jar before it goes
+anywhere: 0.7.0-RC1 and RC2 shipped 2758 AOT classes, because `lein jar`
+packages whatever sits in `target/classes` and a native-image build had been
+run first. Nothing in the build fails when that happens — the jar is simply
+3.3MB of the wrong thing — so the check is to open it and look.
+
+`lein publish` is a shim onto `bb release`, so both front doors get the same
+guards.
+
+The offline tier needs nothing at all. The full suite needs `firebase-tools`
+and the `FIRE` / `GOOGLE_APPLICATION_CREDENTIALS` secrets.
 
 ## Thanks 
 Special thanks to: 
