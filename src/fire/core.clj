@@ -38,29 +38,27 @@
   [method db-name path data & [auth options]]
   (let [res-ch (async/chan 1)]
     (try
-      (let [token (when (:expiry auth) 
-                    (if (< (utils/now) (:expiry auth))
-                      (:token auth) 
-                      (-> auth :env fire-auth/create-token :token)))
+      ;; a nil auth is a public database or the emulator, so unlike fire.admin a
+      ;; missing token here is not refused — the request simply goes out bare
+      (let [token (fire-auth/token-for auth)
             request-options (reduce 
-                              utils/recursive-merge [{:query-params {:pretty-print true}}
+                              utils/recursive-merge [{:method :post}
+                                                     {:url (db-url db-name path)}
+                                                     {:query-params {:pretty-print true}}
                                                      {:headers {"X-HTTP-Method-Override" (method http-type)
                                                                 "Connection" "keep-alive"}}
                                                      {:keepalive 600000}
-                                                     (when auth {:headers {"Authorization" (str "Bearer " token)}})
+                                                     (when token {:headers {"Authorization" (str "Bearer " token)}})
                                                      (when-not (nil? data) {:body (utils/encode data)})
-                                                     (dissoc options :async)])
-            url (db-url db-name path)
-            c sni-client]
-        (binding [org.httpkit.client/*default-client* c]
-          (client/post url request-options 
-            (fn [response] 
-              (let [res (-> response :body utils/decode)
-                    error (:error response)]
-                (if error 
-                  (async/put! res-ch error)
-                  (when-not (nil? res) (async/put! res-ch res)))
-                (async/close! res-ch))))))
+                                                     (dissoc options :async)])]
+        (utils/http! sni-client request-options
+          (fn [response] 
+            (let [res (-> response :body utils/decode)
+                  error (:error response)]
+              (if error 
+                (async/put! res-ch error)
+                (when-not (nil? res) (async/put! res-ch res)))
+              (async/close! res-ch)))))
       (catch Exception e 
         (async/put! res-ch e)
         (async/close! res-ch)))

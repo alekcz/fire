@@ -8,6 +8,9 @@ A lightweight clojure client for Firebase based on the REST API. Basically [Char
 
 ## Prerequisites
 
+Fire runs on Java 8 or later, and on Clojure 1.11 or later. It depends on
+http-kit, cheshire, core.async, environ and clj-uuid, and nothing else.
+
 For fire you will need to create a Realtime Database on Firebase and retrieve the service account credentials.
 
 1. Get the json file containing your service account creditials by following the instruction here https://cloud.google.com/docs/authentication/getting-started
@@ -15,7 +18,7 @@ For fire you will need to create a Realtime Database on Firebase and retrieve th
 
 ## Usage
 
-`[alekcz/fire "0.7.0-RC3"]`
+`[alekcz/fire "0.7.0"]`
 
 ### Interacting with Realtime Database
 
@@ -347,11 +350,19 @@ Unenrollment is security-sensitive and worth audit logging on the way past —
 fire doesn't log it for you. All of this needs Identity Platform; on the legacy
 Firebase Auth tier `:mfa-info` is simply always empty.
 
+Enrollment is one question; whether a factor was actually presented at sign-in
+is another, and it is answered by the verified ID token's
+`:sign_in_second_factor` — see *Verifying Firebase ID tokens* above. It is
+`nil` on the legacy tier and whenever no second factor was used, so a gate
+that enforces MFA must treat `nil` as a deny.
+
 #### Project configuration and turning MFA on
 
-Enabling MFA is two nested switches, and setting only the inner one is a silent
-no-op — TOTP reads as enabled while nothing works and nothing tells you why.
-So there's one call that sets both:
+The project has to be on Firebase Authentication with Identity Platform first
+(Firebase console → Authentication → Settings → Upgrade), which needs Blaze
+billing. After that, enabling MFA is two nested switches, and setting only the
+inner one is a silent no-op — TOTP reads as enabled while nothing works and
+nothing tells you why. So there's one call that sets both:
 
 ```clojure
 (admin/enable-totp-mfa auth)
@@ -362,7 +373,9 @@ choose to enrol. To inspect or set the pieces individually:
 
 ```clojure
 (admin/get-mfa-config auth)
-; => {:state :enabled :totp {:state :enabled :adjacent-intervals 5}}
+; => {:state :enabled
+;     :totp {:state :enabled :adjacent-intervals 5}
+;     :sms  {:state :disabled}}
 
 (admin/set-mfa-config {:state :enabled} auth)
 (admin/set-mfa-config {:totp {:state :enabled :adjacent-intervals 3}} auth)
@@ -371,7 +384,10 @@ choose to enrol. To inspect or set the pieces individually:
 
 Whichever key you leave out is left alone — the update mask is built from the
 keys you pass, so this never round-trips the rest of your project config and
-can't clobber a setting you didn't mention.
+can't clobber a setting you didn't mention. `:sms` is reported but not
+configured: SMS lives in a different field from TOTP, which is also why a TOTP
+write cannot disturb it. Within TOTP, a `:totp` write replaces the provider
+config rather than merging into it.
 
 `:state` is the project-level switch:
 
@@ -450,6 +466,115 @@ Generated rather than sent, so you can deliver them yourself.
 (admin/delete-users ["a" "b" "c"] auth)
 ; => nil, or {:error true :error-data "PARTIAL_FAILURE" :failures [...]}
 ```
+
+### Testing without Firebase
+
+Every request fire makes goes through one function, `fire.utils/http!`, and it
+honours `fire.utils/*http-fn*` when bound. A responder takes http-kit's request
+options map and returns a response map — `:status` and `:body`, or `:error` for
+a failed connection — so a test can answer for Firebase itself:
+
+```clojure
+(require '[fire.utils :as utils])
+
+(binding [utils/*http-fn* (fn [request]
+                            {:status 200
+                             :body (utils/encode {:users [{:localId "uid-123" :email "person@domain.com"}]})})]
+  (admin/get-user "uid-123" auth))
+; => {:uid "uid-123" :email "person@domain.com" ...} — and nothing left the process
+```
+
+It is a dynamic var rather than something to `with-redefs`, because fire
+compiles with direct linking (a redefined `defn` is never seen by its callers),
+and because `binding` is thread-local: a responder bound in one test reaches no
+other test's requests, while the futures and `pmap`s that test itself starts do
+see it, since Clojure conveys bindings to them. A suite that used to share one live Firebase project —
+and serialise on it — can run every Firebase-touching test in parallel with
+nothing to collide on. `test/fire/seam_test.clj` drives each request path this
+way and is the pattern to copy.
+
+Give `auth` a live token and it is never refreshed: `{:token "t" :expiry (+
+(utils/now) 3600) :project-id "p"}`. A fake tests your code and not Google's,
+so keep a thin live tier for the shape of the API itself.
+
+### Credentials, and what happens without them
+
+`auth/create-token` mints an OAuth2 access token from the service account json
+in an env var. When it cannot, it says why, beside `:env`:
+
+```clojure
+(auth/create-token "NOT_SET")
+; => {:env "NOT_SET" :error true :error-data "MISSING_CREDENTIALS"}
+;    INVALID_CREDENTIALS      — set, but not a service account's json
+;    TOKEN_EXCHANGE_FAILED: … — google refused the assertion, or was unreachable
+```
+
+`fire.admin` refuses such a map with `MISSING_CREDENTIALS` before sending
+anything, since nothing on the identity toolkit is callable anonymously.
+`fire.core` and `fire.storage` send a nil auth bare, because a public database
+or bucket is a real thing.
+
+Tokens expire after an hour. The request paths refresh them through
+`auth/token-for`, which caches the replacement per env var, so a long-lived
+process holding one `auth` map pays for the exchange once an hour rather than
+once a call. `auth/forget-token!` drops a cached token, for credentials rotated
+while the process runs.
+
+## Development
+
+The workflows live in `bb.edn`, so that what you run locally and what a release
+runs are the same thing.
+
+```bash
+bb test           # offline tests: no credentials, no emulator, no network
+bb test:matrix    # the same, under clojure 1.11 and 1.12, as CI runs them
+bb test:all       # full suite with coverage against the firebase emulator
+bb native         # uberjar, native image, and run it — the graal path
+bb graal-check    # find a Random in any reachable var root: the native-image blocker
+bb jar            # clean, build, and check the jar is source-only: the release dry run
+bb check          # all three of the above — everything that can fail a release
+bb sign-check     # can this shell sign a release?
+bb release        # clean, build, verify, deploy to clojars
+```
+
+`bb jar` and `bb release` both look inside the built jar before it goes
+anywhere: 0.7.0-RC1 and RC2 shipped 2758 AOT classes, because `lein jar`
+packages whatever sits in `target/classes` and a native-image build had been
+run first. Nothing in the build fails when that happens — the jar is simply
+3.3MB of the wrong thing — so the check is to open it and look.
+
+`bb graal-check` is the other guard. native-image runs class initializers at
+build time and refuses an image whose heap holds a `Random` — its seed would
+be frozen into the binary. Reachability runs through the namespace graph, so
+one in *any* library fire loads counts: clj-uuid 0.2.5 broke the build from a
+`defonce` nobody here wrote, which is why that dependency is pinned below it.
+Finding that out costs a GraalVM toolchain and 70 seconds of analysis;
+`bb graal-check` finds it in one JVM start.
+
+`lein publish` is a shim onto `bb release`, so both front doors get the same
+guards.
+
+The offline tier needs nothing at all. The full suite needs `firebase-tools`
+and the `FIRE` / `GOOGLE_APPLICATION_CREDENTIALS` secrets.
+
+`bb native` needs a GraalVM with the native-image component — the same one CI
+uses, if you want to reproduce what it sees:
+
+```bash
+curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
+tar xzf graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
+curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+./graalvm-ce-java11-22.0.0.2/bin/gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+
+export GRAALVM_HOME=$PWD/graalvm-ce-java11-22.0.0.2
+export JAVA_HOME=$GRAALVM_HOME
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+The image takes a couple of minutes and peaks around 4.5GB, so give it
+`_JAVA_OPTIONS=-Xmx7g` as CI does. `bb native` then runs the binary, which
+does need the real credentials; `lein do clean, uberjar, native` stops at the
+build, which is the part `bb graal-check` is a fast proxy for.
 
 ## Thanks 
 Special thanks to: 

@@ -1,18 +1,25 @@
-(defproject alekcz/fire "0.7.0-RC3"
+(defproject alekcz/fire "0.7.0"
   :description "Firebase from Clojure. Basically Charmander 2.0"
   :url "https://github.com/alekcz/fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [ [org.clojure/clojure "1.11.3"]
-                  [org.clojure/core.async "1.6.681"]
-                  [http-kit "2.7.0"]
-                  [cheshire "5.13.0"]
+  :dependencies [ [org.clojure/clojure "1.11.4"]
+                  [org.clojure/core.async "1.8.741"]
+                  [http-kit "2.8.1"]
+                  [cheshire "6.2.0"]
                   [environ "1.2.0"]
-                  [stylefruits/gniazdo "1.2.1"]
+                  ;; NOT 0.2.5. That release holds its SecureRandom in a bare
+                  ;; defonce, and native-image runs class initializers at build
+                  ;; time and then refuses an image whose heap contains a
+                  ;; Random — so 0.2.5 fails `bb native` outright, and would
+                  ;; fail it for every consumer building a native image too.
+                  ;; 0.1.9 has no Random at all; 0.2.0 wraps it in a delay and
+                  ;; is also safe, if something in 0.2.x is ever wanted. fire
+                  ;; uses exactly one function from this library.
                   [danlentz/clj-uuid "0.1.9"]
                   ]
-  :plugins [[lein-cloverage "1.2.2"]
-            [lein-eftest "0.5.9"]
+  :plugins [[lein-cloverage "1.2.4"]
+            [lein-eftest "0.6.0"]
             ]
   :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
   :javac-options ["--release" "8" "-g"]
@@ -36,18 +43,35 @@
                             :fail-fast? false
                             :multithread? :namespaces}}
   :profiles { :uberjar {:aot :all}
+              ;; the clojure a consumer runs fire on. CI runs the offline tier
+              ;; under each, because a library that ships source runs on theirs,
+              ;; not on the one pinned above.
+              :clj-1.11 {:dependencies [[org.clojure/clojure "1.11.4"]]}
+              :clj-1.12 {:dependencies [[org.clojure/clojure "1.12.0"]]}
+              ;; dev/ is tooling, not library source, and it is deliberately
+              ;; NOT on :dev's source paths: cloverage instruments whatever is
+              ;; there, so graal_check.clj landed in the coverage report at 11%
+              ;; and dragged the totals down with it.
+              :graal-check {:source-paths ["dev"]}
               :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
-                                     [com.taoensso/nippy "3.1.1"]
+                                     [com.taoensso/nippy "3.9.0"]
                                      [metosin/malli "0.8.0"]
-                                     [eftest/eftest "0.5.9"]]}}
+                                     [eftest/eftest "0.6.0"]]}}
   :aliases
-  {;; always clean first. a stale target/classes from a previous uberjar or
-   ;; native build gets swept into `lein jar`, which is how compiled clojure
-   ;; and dependency classes ended up in a published artifact once.
-   "publish" ["do" "clean," "deploy" "clojars"]
+  {;; bb.edn is where the workflows live, so that `bb release` and `lein
+   ;; publish` cannot drift into meaning two different things. bb release
+   ;; cleans first (a stale target/classes from a previous uberjar or native
+   ;; build gets swept into `lein jar`, which is how compiled clojure and
+   ;; dependency classes ended up in a published artifact once), then reads
+   ;; the built jar back and refuses to deploy one carrying .class files.
+   ;; It calls `lein deploy clojars` directly, never this alias — pointing it
+   ;; here instead would loop.
+   "publish" ["shell" "bb" "release"]
+   "verify"  ["shell" "bb" "verify"]
+   "sign-check" ["shell" "bb" "sign-check"]
 
    "native"
    ["shell"

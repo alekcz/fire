@@ -11,15 +11,25 @@ jobs:
   # doesn't need real firebase, before the emulator and native image builds
   # spend twenty.
   offline:
-    name: Offline tests
+    name: Offline tests (java ${{ matrix.java }}, clojure ${{ matrix.clojure }})
     runs-on: ubuntu-latest
+    # fire is a source-only library, so it runs on whatever jdk and clojure the
+    # consumer brings. two release candidates shipped that loaded on the jdk
+    # and clojure CI used and on nothing newer, because CI only ever had the
+    # one. the live tier below still runs once, on the oldest pair.
+    strategy:
+      fail-fast: false
+      matrix:
+        # 8 is the floor, and it is on the list so that it stays one
+        java: ['8', '11', '17', '21', '25']
+        clojure: ['1.11', '1.12']
     steps:
     - uses: actions/checkout@v4
 
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: '11'
+        java-version: ${{ matrix.java }}
 
     - name: Install Leiningen
       run: |
@@ -37,7 +47,9 @@ jobs:
               ${{ runner.os }}-maven-
 
     - name: Run offline tests
-      run: lein test :offline
+      # the profile's clojure replaces project.clj's, which is what happens
+      # on a consumer's classpath
+      run: lein with-profile +clj-${{ matrix.clojure }} test :offline
 
   build:
     needs: offline
@@ -103,10 +115,13 @@ jobs:
     - name: Download GraalVM Java-8
       run: |
         cd ~
-        if ! [ -d graalvm-ce-java8-20.2.0 ]; then
+        # the guard has to name the directory the tarball actually extracts
+        # to. it said 20.2.0 while the download is 20.3.2, so it never matched
+        # and ~340MB came down on every run, cache hit or not.
+        if ! [ -d graalvm-ce-java8-20.3.2 ]; then
           curl -O -sL https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
           tar xzf graalvm-ce-java8-linux-amd64-20.3.2.tar.gz
-        fi     
+        fi
 
     - name: Cache emulator
       uses: actions/cache@v4
@@ -115,6 +130,7 @@ jobs:
         path: ~/.cache/firebase/emulators
         key: ${{ runner.os }}-fb-${{ hashFiles('firebase.json') }}
         restore-keys: |
+              ${{ runner.os }}-fb-
 
     - name: Run tests
       env: 
@@ -154,8 +170,12 @@ jobs:
         # gu's component catalog on oca.opensource.oracle.com is gone, so
         # `gu install native-image` can no longer resolve anything. install the
         # component straight from the github release the jdk itself came from.
-        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
-        gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        # it lands INSIDE $GRAALVM_HOME, so a cache hit already carries it —
+        # fetching and installing again each run is 15MB and a step for nothing.
+        if ! [ -x "$GRAALVM_HOME/bin/native-image" ]; then
+          curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+          gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+        fi
         bash ./graaltest.sh
 
     - name: Build native image Java-8
@@ -172,6 +192,10 @@ jobs:
         # gu's component catalog on oca.opensource.oracle.com is gone, so
         # `gu install native-image` can no longer resolve anything. install the
         # component straight from the github release the jdk itself came from.
-        curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
-        gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        # it lands INSIDE $GRAALVM_HOME, so a cache hit already carries it —
+        # fetching and installing again each run is 15MB and a step for nothing.
+        if ! [ -x "$GRAALVM_HOME/bin/native-image" ]; then
+          curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-20.3.2/native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+          gu -L install native-image-installable-svm-java8-linux-amd64-20.3.2.jar
+        fi
         bash ./graaltest.sh

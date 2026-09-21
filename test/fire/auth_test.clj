@@ -32,9 +32,21 @@
       (is (not (str/blank? token))))))
 
 (deftest ^:offline non-existent-token-test
-  (testing "Tests non-existent token"
+  (testing "an env var with nothing in it is reported as such, beside :env"
+    ;; this used to come back as a bare {:env ...} — no token, no error — and
+    ;; the first sign anything was wrong was a 401 several calls later
     (let [auth (fire-auth/create-token :non-existent-key)]
-      (is (= {:env :non-existent-key} auth)))))
+      (is (= {:env :non-existent-key :error true :error-data "MISSING_CREDENTIALS"} auth)))))
+
+(deftest ^:offline decode-credentials-test
+  (testing "what is in the env var decides which failure it is"
+    (is (nil? (oauth2/decode-credentials nil)))
+    (is (nil? (oauth2/decode-credentials "")))
+    (is (nil? (oauth2/decode-credentials "   ")))
+    (is (= {:error true :error-data "INVALID_CREDENTIALS"} (oauth2/decode-credentials "GARBAGE")))
+    ;; json, but not a service account
+    (is (= {:error true :error-data "INVALID_CREDENTIALS"} (oauth2/decode-credentials "[1,2,3]")))
+    (is (= {:project_id "p" :private_key "k"} (oauth2/decode-credentials "{\"project_id\":\"p\",\"private_key\":\"k\"}")))))
 
 ;; ---------------------------------------------------------------------------
 ;; validate-token — verifying an incoming Firebase ID token (the inverse
@@ -336,3 +348,53 @@ qwEFwqRUFo+nrwDhrCmruQ==
         (is (thrown? Exception (#'fire-auth/current-certs url))))
 
       (finally (reset! cache prior)))))
+
+
+;; ---------------------------------------------------------------------------
+;; token-for — the cache in front of create-token. Minting needs real
+;; credentials, so these drive the cache through its atom the way the cert
+;; tests above do, and leave the mint itself to the live tier.
+;; ---------------------------------------------------------------------------
+
+(defn- with-token-cache [entries f]
+  (let [cache @#'fire-auth/token-cache
+        prior @cache]
+    (reset! cache entries)
+    (try (f) (finally (reset! cache prior)))))
+
+(deftest ^:offline token-for-test
+  (let [now (utils/now)]
+    (testing "nothing to work with is nil, never a throw"
+      (is (nil? (fire-auth/token-for nil)))
+      (is (nil? (fire-auth/token-for {})))
+      ;; stale, and nowhere to mint a replacement from
+      (is (nil? (fire-auth/token-for {:token "old" :expiry 0}))))
+
+    (testing "a live token on the map is used as-is, whatever the cache holds"
+      (with-token-cache {"X" {:token "cached" :expiry (+ now 1000)}}
+        #(is (= "mine" (fire-auth/token-for {:token "mine" :expiry (+ now 1000) :env "X"})))))
+
+    (testing "a token with no expiry is the caller's business"
+      (is (= "mine" (fire-auth/token-for {:token "mine"}))))
+
+    (testing "a stale map is answered from the cache, without minting"
+      (with-token-cache {"X" {:token "cached" :expiry (+ now 1000)}}
+        (fn []
+          (is (= "cached" (fire-auth/token-for {:token "old" :expiry 0 :env "X"})))
+          ;; a create-token that failed has the same shape as a stale one here
+          (is (= "cached" (fire-auth/token-for {:error true :error-data "MISSING_CREDENTIALS" :env "X"}))))))
+
+    (testing "a stale cache entry is not handed out"
+      (with-token-cache {:non-existent-key {:token "expired" :expiry 0}}
+        (fn []
+          ;; the mint from :non-existent-key fails, so nil — but never "expired"
+          (is (nil? (fire-auth/token-for {:expiry 0 :env :non-existent-key})))
+          ;; and a failed mint does not overwrite what was there
+          (is (= "expired" (get-in @@#'fire-auth/token-cache [:non-existent-key :token]))))))
+
+    (testing "forget-token! drops one env var's entry"
+      (with-token-cache {"X" {:token "a" :expiry (+ now 1000)} "Y" {:token "b" :expiry (+ now 1000)}}
+        (fn []
+          (fire-auth/forget-token! "X")
+          (is (nil? (get @@#'fire-auth/token-cache "X")))
+          (is (= "b" (fire-auth/token-for {:expiry 0 :env "Y"}))))))))
