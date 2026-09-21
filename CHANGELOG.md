@@ -46,14 +46,21 @@ project MFA configuration arrived.
   `bb release` reads the built jar back and refuses to deploy one carrying
   `.class` files, checks the clojars credentials and proves gpg can sign
   before spending time on a build, and refuses a dirty tree. `lein publish`
-  is a shim onto it. Two release candidates loaded on the one JDK and Clojure CI had and on
+  is a shim onto it.
+- `bb graal-check` (and `bb check`, which runs the release gates together):
+  scans every var root reachable from `fire.graal` for a `Random`, which
+  native-image bakes into the image heap and then refuses. It is reached
+  through the namespace graph, so one in any dependency counts — and one in
+  a dependency is how it was found. Two release candidates loaded on the one JDK and Clojure CI had and on
   nothing newer, because CI only ever had the one.
 
 ### Changed
 - Dependencies brought to their latest stable releases: cheshire 5.13.0 → 6.2.0
   (Jackson 2.17.0 → 2.21.1; its one breaking change is Windows line endings
   in pretty-printing, which fire does not use), core.async 1.6.681 → 1.8.741,
-  clj-uuid 0.1.9 → 0.2.5, and the lein-cloverage and lein-eftest plugins. All still run on
+  and the lein-cloverage and lein-eftest plugins. clj-uuid stays at 0.1.9:
+  0.2.5 holds its SecureRandom in a bare defonce, which fails the native
+  image build and would fail it for consumers building one too. All still run on
   Java 8. nippy moves to 3.9.0 in the dev profile. What a consumer gets carries no
   version conflicts; the one left in the tree is dev-only (malli 0.8.0 and
   eftest disagreeing on fipp) and stays, as do malli, claypoole and

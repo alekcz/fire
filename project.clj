@@ -8,7 +8,15 @@
                   [http-kit "2.8.1"]
                   [cheshire "6.2.0"]
                   [environ "1.2.0"]
-                  [danlentz/clj-uuid "0.2.5"]
+                  ;; NOT 0.2.5. That release holds its SecureRandom in a bare
+                  ;; defonce, and native-image runs class initializers at build
+                  ;; time and then refuses an image whose heap contains a
+                  ;; Random — so 0.2.5 fails `bb native` outright, and would
+                  ;; fail it for every consumer building a native image too.
+                  ;; 0.1.9 has no Random at all; 0.2.0 wraps it in a delay and
+                  ;; is also safe, if something in 0.2.x is ever wanted. fire
+                  ;; uses exactly one function from this library.
+                  [danlentz/clj-uuid "0.1.9"]
                   ]
   :plugins [[lein-cloverage "1.2.4"]
             [lein-eftest "0.6.0"]
@@ -42,6 +50,7 @@
               :clj-1.12 {:dependencies [[org.clojure/clojure "1.12.0"]]}
               :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
+                    :source-paths ["dev"]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
                                      [com.taoensso/nippy "3.9.0"]

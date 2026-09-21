@@ -530,7 +530,9 @@ bb test           # offline tests: no credentials, no emulator, no network
 bb test:matrix    # the same, under clojure 1.11 and 1.12, as CI runs them
 bb test:all       # full suite with coverage against the firebase emulator
 bb native         # uberjar, native image, and run it — the graal path
+bb graal-check    # find a Random in any reachable var root: the native-image blocker
 bb jar            # clean, build, and check the jar is source-only: the release dry run
+bb check          # all three of the above — everything that can fail a release
 bb sign-check     # can this shell sign a release?
 bb release        # clean, build, verify, deploy to clojars
 ```
@@ -540,6 +542,14 @@ anywhere: 0.7.0-RC1 and RC2 shipped 2758 AOT classes, because `lein jar`
 packages whatever sits in `target/classes` and a native-image build had been
 run first. Nothing in the build fails when that happens — the jar is simply
 3.3MB of the wrong thing — so the check is to open it and look.
+
+`bb graal-check` is the other guard. native-image runs class initializers at
+build time and refuses an image whose heap holds a `Random` — its seed would
+be frozen into the binary. Reachability runs through the namespace graph, so
+one in *any* library fire loads counts: clj-uuid 0.2.5 broke the build from a
+`defonce` nobody here wrote, which is why that dependency is pinned below it.
+Finding that out costs a GraalVM toolchain and 70 seconds of analysis;
+`bb graal-check` finds it in one JVM start.
 
 `lein publish` is a shim onto `bb release`, so both front doors get the same
 guards.
