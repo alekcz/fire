@@ -26,7 +26,12 @@
 
 (def ^:private connect-timeout-ms 30000)
 (def ^:private websocket-guid "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-(def ^:private random (SecureRandom.))
+;; a delay, not the instance: native-image runs class initializers at BUILD
+;; time and then refuses an image whose heap holds a Random — its seed would
+;; be baked into the binary and every copy would draw the same masking keys.
+;; Unrealized, the delay is just a function, which the image is happy to hold.
+;; Same reason the sni-client delays elsewhere in fire are delays.
+(def ^:private random (delay (SecureRandom.)))
 
 (def ^:private opcodes {:continuation 0x0 :text 0x1 :binary 0x2 :close 0x8 :ping 0x9 :pong 0xA})
 (def ^:private opcode-names (into {} (map (fn [[k v]] [v k]) opcodes)))
@@ -50,7 +55,7 @@
         data (DataOutputStream. out)
         len (alength payload)
         key (byte-array 4)]
-    (.nextBytes ^SecureRandom random key)
+    (.nextBytes ^SecureRandom @random key)
     (.writeByte data (bit-or 0x80 (int (opcodes opcode))))
     (cond
       (< len 126) (.writeByte data (bit-or 0x80 len))
@@ -110,7 +115,7 @@
    accepts our key. Throws with the status line otherwise."
   [^URI uri ^OutputStream out ^InputStream in]
   (let [key-bytes (byte-array 16)
-        _ (.nextBytes ^SecureRandom random key-bytes)
+        _ (.nextBytes ^SecureRandom @random key-bytes)
         key (.encodeToString (Base64/getEncoder) key-bytes)
         path (str (if (str/blank? (.getRawPath uri)) "/" (.getRawPath uri))
                   (when (.getRawQuery uri) (str "?" (.getRawQuery uri))))

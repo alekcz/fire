@@ -36,6 +36,17 @@
     (doseq [^bytes f frames] (.write out f))
     (DataInputStream. (ByteArrayInputStream. (.toByteArray out)))))
 
+(deftest ^:offline no-random-in-the-image-heap-test
+  (testing "the SecureRandom is behind a delay, so nothing constructs one at class-init"
+    ;; native-image runs class initializers at BUILD time and then rejects an
+    ;; image whose heap holds a Random: its seed would be baked into the
+    ;; binary and every copy of it would draw the same websocket masking keys.
+    ;; Holding the instance in the var root failed the graal build outright.
+    ;; Asserting on the root rather than on realized? keeps this independent
+    ;; of whether an earlier test in the run has already opened a socket.
+    (is (instance? clojure.lang.Delay @#'ws/random))
+    (is (not (instance? java.util.Random @#'ws/random)))))
+
 (deftest ^:offline read-frame-test
   (testing "the three payload length encodings"
     (doseq [n [0 125 126 65535 65536 200000]]
