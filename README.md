@@ -557,6 +557,25 @@ guards.
 The offline tier needs nothing at all. The full suite needs `firebase-tools`
 and the `FIRE` / `GOOGLE_APPLICATION_CREDENTIALS` secrets.
 
+`bb native` needs a GraalVM with the native-image component — the same one CI
+uses, if you want to reproduce what it sees:
+
+```bash
+curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
+tar xzf graalvm-ce-java11-linux-amd64-22.0.0.2.tar.gz
+curl -sSLO https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.0.0.2/native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+./graalvm-ce-java11-22.0.0.2/bin/gu -L install native-image-installable-svm-java11-linux-amd64-22.0.0.2.jar
+
+export GRAALVM_HOME=$PWD/graalvm-ce-java11-22.0.0.2
+export JAVA_HOME=$GRAALVM_HOME
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+The image takes a couple of minutes and peaks around 4.5GB, so give it
+`_JAVA_OPTIONS=-Xmx7g` as CI does. `bb native` then runs the binary, which
+does need the real credentials; `lein do clean, uberjar, native` stops at the
+build, which is the part `bb graal-check` is a fast proxy for.
+
 ## Thanks 
 Special thanks to: 
 - [@sgrove](https://github.com/sgrove)
