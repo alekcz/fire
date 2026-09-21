@@ -233,7 +233,27 @@
   (testing "a server that hangs up mid-handshake is an eof, not a hang"
     (with-raw-server "HTTP/1.1 101 Switching"
       (fn [url]
-        (is (thrown? java.io.EOFException (ws/connect url)))))))
+        (is (thrown? java.io.EOFException (ws/connect url))))))
+
+  (testing "a server that accepts and then says nothing gives up, rather than hanging forever"
+    ;; the tcp connect succeeds, so only a socket read timeout ends this —
+    ;; without one the upgrade read blocks for as long as the peer cares to
+    ;; stay silent, which is what jetty's idle timeout used to prevent
+    (let [server (java.net.ServerSocket. 0)
+          accepted (promise)
+          thread (Thread. (fn [] (try (deliver accepted (.accept server)) (catch Exception _))))]
+      (.start thread)
+      (try
+        (with-redefs-fn {#'ws/handshake-timeout-ms 300}
+          (fn []
+            (let [start (System/currentTimeMillis)]
+              (is (thrown? java.net.SocketTimeoutException
+                    (ws/connect (str "ws://127.0.0.1:" (.getLocalPort server)))))
+              (is (< (- (System/currentTimeMillis) start) 10000)
+                  "gave up on the silent peer rather than blocking"))))
+        (finally
+          (when (realized? accepted) (try (.close ^java.net.Socket @accepted) (catch Exception _)))
+          (.close server))))))
 
 ;; ---------------------------------------------------------------------------
 ;; against a server

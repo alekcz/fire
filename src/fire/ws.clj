@@ -25,6 +25,14 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private connect-timeout-ms 30000)
+
+;; The TCP connect above is bounded, but nothing after it is unless the socket
+;; is told to be: a peer that accepts the connection and then says nothing
+;; would hang the TLS handshake, or the read of the upgrade response, for as
+;; long as it cared to. Jetty had an idle timeout doing this job. The read
+;; loop gets the timeout taken off again once the handshake is through, since
+;; a websocket that is merely quiet is not a websocket in trouble.
+(def ^:private handshake-timeout-ms 30000)
 (def ^:private websocket-guid "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 ;; a delay, not the instance: native-image runs class initializers at BUILD
 ;; time and then refuses an image whose heap holds a Random — its seed would
@@ -151,6 +159,7 @@
     (if secure?
       (let [^SSLSocket socket (.createSocket ^SSLSocketFactory (SSLSocketFactory/getDefault))]
         (.connect socket address connect-timeout-ms)
+        (.setSoTimeout socket handshake-timeout-ms)
         ;; createSocket() with no host leaves SNI and hostname verification
         ;; off. the host has to be put back for both, or a certificate for any
         ;; name at all would do
@@ -160,7 +169,9 @@
           (.setSSLParameters socket params))
         (.startHandshake socket)
         socket)
-      (doto (Socket.) (.connect address connect-timeout-ms)))))
+      (doto (Socket.)
+        (.connect address connect-timeout-ms)
+        (.setSoTimeout handshake-timeout-ms)))))
 
 ;; ---------------------------------------------------------------------------
 ;; a connection
@@ -236,6 +247,10 @@
         out (BufferedOutputStream. (.getOutputStream socket))]
     (try
       (handshake! uri out in)
+      ;; the handshake is through, so the read loop may now block as long as
+      ;; it likes: an idle websocket is normal, and firebase's own keepalives
+      ;; arrive on their own schedule
+      (.setSoTimeout socket 0)
       (catch Exception e
         (try (.close socket) (catch Exception _))
         (throw e)))

@@ -115,7 +115,7 @@
                ;; else. Letting shell throw buries the one useful line under a
                ;; babashka process stack trace.
                :task (let [{:keys [exit]} (shell {:continue true}
-                                                 "lein" "with-profile" "+dev" "trampoline" "run" "-m" "graal-check")]
+                                                 "lein" "with-profile" "+graal-check" "trampoline" "run" "-m" "graal-check")]
                        (when-not (zero? exit) (System/exit exit)))}
 
   sign-check {:doc "Can this shell sign a release? Runs the gpg preflight `bb release` does, and nothing else."

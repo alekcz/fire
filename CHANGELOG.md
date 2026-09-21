@@ -93,6 +93,11 @@ project MFA configuration arrived.
   `mfa.providerConfigs` wholesale rather than merging into it — safe today,
   because TOTP is the only provider Identity Platform configures through that
   field, but a replace and not the merge the old wording implied.
+- `fire.ws` bounds the handshake with a socket timeout, not just the TCP
+  connect. A peer that accepted the connection and then said nothing would
+  hang the TLS handshake, or the read of the upgrade response, indefinitely —
+  Jetty had an idle timeout doing that job. The read loop has it taken off
+  again once the handshake is through, since a quiet websocket is normal.
 
 ### Removed
 - gniazdo, and with it the seven Jetty 9.4 jars it put on every consumer's

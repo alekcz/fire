@@ -48,9 +48,13 @@
               ;; not on the one pinned above.
               :clj-1.11 {:dependencies [[org.clojure/clojure "1.11.4"]]}
               :clj-1.12 {:dependencies [[org.clojure/clojure "1.12.0"]]}
+              ;; dev/ is tooling, not library source, and it is deliberately
+              ;; NOT on :dev's source paths: cloverage instruments whatever is
+              ;; there, so graal_check.clj landed in the coverage report at 11%
+              ;; and dragged the totals down with it.
+              :graal-check {:source-paths ["dev"]}
               :dev {:plugins [[lein-shell "0.5.0"]]
                     :env {:wrong-api "GARBAGE"}
-                    :source-paths ["dev"]
                     :dependencies [  [com.climate/claypoole "1.1.4"]
                                      [criterium "0.4.6"]
                                      [com.taoensso/nippy "3.9.0"]
