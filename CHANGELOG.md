@@ -39,7 +39,11 @@ project MFA configuration arrived.
 - CI runs the offline tier on Java 8, 11, 17, 21 and 25 against Clojure 1.11
   and 1.12. Two release candidates loaded on the one JDK and Clojure CI had
   and on nothing newer, because CI only ever had the one; Java 8 is on the
-  list so that the floor stays where the README says it is.
+  list so that the floor stays where the README says it is. The live tier and
+  the native image builds now run only in the master workflow, which fires on
+  every pull request against master: running them in both meant the live
+  suite ran twice per push and, sharing one concurrency group, the second was
+  cancelled rather than queued.
 - `bb.edn` holds the build workflows — `bb test`, `bb test:matrix`,
   `bb test:all`, `bb native`, `bb jar`, `bb sign-check`, `bb release` — so
   that what a contributor runs and what a release runs cannot drift apart.
